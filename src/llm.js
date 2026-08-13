@@ -347,13 +347,52 @@ function withScreenshotNote(prompt, imagePath) {
   return `${prompt}\n\nA screenshot for this request is saved at: ${imagePath}\nOpen and read that image file before answering.`;
 }
 
+// GUI-launched apps (Dock icon, Finder double-click — not a terminal) inherit
+// the OS's bare default PATH, not your shell profile's extended one. A CLI
+// installed via nvm/homebrew/npm-global/pip/etc. works fine when you type its
+// name in Terminal and is invisible here for that reason alone. Resolve the
+// real PATH once per process by asking the user's actual login shell for it —
+// the same environment Terminal.app effectively uses — and merge it into every
+// spawn below. Cached because spawning a login shell has real overhead.
+let cachedShellPathPromise = null;
+function resolveLoginShellPath() {
+  if (cachedShellPathPromise) return cachedShellPathPromise;
+  cachedShellPathPromise = new Promise((resolve) => {
+    const shellBin = process.env.SHELL || '/bin/zsh';
+    const MARK = '__ASIDE_PATH__';
+    let child;
+    try {
+      // -ilc: interactive + login + run this command, so .zshrc/.zprofile (or
+      // bash/fish equivalents) actually get sourced, same as opening Terminal.
+      child = spawn(shellBin, ['-ilc', `echo ${MARK}$PATH${MARK}`]);
+    } catch {
+      resolve(process.env.PATH || '');
+      return;
+    }
+    let out = '';
+    child.stdout.on('data', (c) => { out += c.toString('utf8'); });
+    child.on('error', () => resolve(process.env.PATH || ''));
+    // Startup banners/MOTD from shell plugins can print extra noise around our
+    // markers — extract only what's between them rather than trusting stdout as-is.
+    child.on('close', () => {
+      const m = new RegExp(`${MARK}(.*)${MARK}`, 's').exec(out);
+      resolve(m ? m[1].trim() : (process.env.PATH || ''));
+    });
+    // Don't let a hung/misconfigured shell block every CLI call forever, and
+    // don't leave it running in the background if we give up on it.
+    setTimeout(() => { try { child.kill(); } catch { /* already gone */ } resolve(process.env.PATH || ''); }, 5000).unref();
+  });
+  return cachedShellPathPromise;
+}
+
 // Spawns `command args`, streams stdout chunks through onToken as they
 // arrive, and resolves with the full combined stdout on a clean exit.
-function runCli(command, args, { onToken } = {}) {
+async function runCli(command, args, { onToken } = {}) {
+  const resolvedPath = await resolveLoginShellPath();
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(command, args, { shell: false });
+      child = spawn(command, args, { shell: false, env: { ...process.env, PATH: resolvedPath || process.env.PATH } });
     } catch (err) {
       reject(new Error(`Could not start "${command}": ${err.message}`));
       return;
@@ -476,5 +515,5 @@ function createLLM(settings) {
 
 module.exports = {
   createLLM, formatProviderErrorMessage, isQuotaError, CURRENT_GEMINI_DEFAULT,
-  CLI_PROVIDERS, buildClaudeCodeArgs, buildCodexArgs, runCli
+  CLI_PROVIDERS, buildClaudeCodeArgs, buildCodexArgs, runCli, resolveLoginShellPath
 };

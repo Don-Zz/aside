@@ -5,7 +5,7 @@ const store = require('./src/store');
 const { captureScreenshot } = require('./src/screen');
 const { createSTT } = require('./src/stt');
 const { parseDocumentFile } = require('./src/resume');
-const { createLLM } = require('./src/llm');
+const { createLLM, resolveLoginShellPath } = require('./src/llm');
 const { MODES } = require('./src/prompts');
 const { rms16 } = require('./src/wav');
 const { createStreamingSTT } = require('./src/stt-streaming');
@@ -782,16 +782,23 @@ ipcMain.handle('usage:summary', () => usage.summary());
 // -------- CLI-provider availability check (Claude Code / Codex) --------
 // Quick "-v" probe so Settings can show found/not-found instead of the user
 // only discovering a missing CLI mid-conversation via an error toast.
-ipcMain.handle('cli:check', (_e, command) => new Promise((resolve) => {
-  if (!['claude', 'codex'].includes(command)) { resolve({ found: false, error: 'unknown command' }); return; }
-  let child;
-  try { child = require('child_process').spawn(command, ['--version']); }
-  catch { resolve({ found: false }); return; }
-  let out = '';
-  child.stdout && child.stdout.on('data', (c) => { out += c.toString('utf8'); });
-  child.on('error', () => resolve({ found: false }));
-  child.on('close', (code) => resolve({ found: code === 0, version: out.trim().slice(0, 80) }));
-}));
+ipcMain.handle('cli:check', async (_e, command) => {
+  if (!['claude', 'codex'].includes(command)) return { found: false, error: 'unknown command' };
+  // Same PATH resolution as the actual provider call (src/llm.js) — otherwise
+  // this check could say "found" using a Terminal-inherited env this process
+  // doesn't actually have, or "not found" for a CLI that genuinely works once
+  // the login-shell PATH is merged in. Keep the two checks honest with each other.
+  const resolvedPath = await resolveLoginShellPath();
+  return new Promise((resolve) => {
+    let child;
+    try { child = require('child_process').spawn(command, ['--version'], { env: { ...process.env, PATH: resolvedPath || process.env.PATH } }); }
+    catch { resolve({ found: false }); return; }
+    let out = '';
+    child.stdout && child.stdout.on('data', (c) => { out += c.toString('utf8'); });
+    child.on('error', () => resolve({ found: false }));
+    child.on('close', (code) => resolve({ found: code === 0, version: out.trim().slice(0, 80) }));
+  });
+});
 ipcMain.on('ask', (_e, payload) => runFeature(payload.mode, payload.text));
 ipcMain.on('mic:pcm', (_e, arrayBuffer) => { if (state.capturing) routeAudio('you', arrayBuffer); });
 ipcMain.on('system:pcm', (_e, arrayBuffer) => { if (state.capturing) routeAudio('them', arrayBuffer); });

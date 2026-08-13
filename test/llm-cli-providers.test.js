@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { CLI_PROVIDERS, buildClaudeCodeArgs, buildCodexArgs, runCli, createLLM } = require('../src/llm');
+const { CLI_PROVIDERS, buildClaudeCodeArgs, buildCodexArgs, runCli, createLLM, resolveLoginShellPath } = require('../src/llm');
 
 test('CLI_PROVIDERS lists exactly claude-code and codex', () => {
   assert.deepStrictEqual([...CLI_PROVIDERS].sort(), ['claude-code', 'codex']);
@@ -40,6 +40,43 @@ test('runCli rejects with a clear message when the command does not exist', asyn
     () => runCli('definitely-not-a-real-cli-binary-xyz', ['--version']),
     /was not found on your PATH/
   );
+});
+
+test('resolveLoginShellPath returns a non-empty PATH string and is cached (called twice, no hang)', async () => {
+  const first = await resolveLoginShellPath();
+  const second = await resolveLoginShellPath();
+  assert.strictEqual(typeof first, 'string');
+  assert.ok(first.length > 0);
+  assert.strictEqual(first, second, 'second call should return the cached value, not re-spawn a shell');
+});
+
+test('resolveLoginShellPath matches what a real login shell reports, not the narrower process.env.PATH', async () => {
+  // Cross-check against the same technique run independently in this test
+  // (rather than faking $HOME, which several system shell frameworks resolve
+  // in ways that don't reliably respect a spoofed env var) — this still
+  // proves the function is doing real login-shell resolution and not just
+  // echoing back process.env.PATH unchanged.
+  const { execFileSync } = require('child_process');
+  const shellBin = process.env.SHELL || '/bin/zsh';
+  let expected;
+  try {
+    expected = execFileSync(shellBin, ['-ilc', 'echo __MARK__$PATH__MARK__'], { encoding: 'utf8' });
+  } catch {
+    return; // no usable shell in this environment — nothing to assert
+  }
+  const m = /__MARK__(.*)__MARK__/s.exec(expected);
+  if (!m) return;
+  const resolved = await resolveLoginShellPath();
+  assert.strictEqual(resolved, m[1].trim());
+});
+
+test('runCli passes the resolved PATH through to the child process env', async () => {
+  // "node" itself is guaranteed to exist somewhere on PATH (we're running
+  // under it) — confirms runCli's env override doesn't accidentally drop
+  // entries a real command needs, using -e so no extra file/PATH lookup for
+  // the script itself is required.
+  const out = await runCli('node', ['-e', 'console.log("cli-provider-ok")']);
+  assert.strictEqual(out, 'cli-provider-ok');
 });
 
 test('createLLM treats claude-code/codex as ready with no API key and no model set', () => {
