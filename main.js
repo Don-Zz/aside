@@ -18,6 +18,30 @@ const { exportMeetingMarkdown } = require('./src/meeting-export');
 const { createFlashcardStore, buildFlashcardsPrompt, parseFlashcards } = require('./src/flashcards');
 const { createUsageTracker } = require('./src/usage');
 
+// Single-instance lock — without this, every Dock click / `open` call spawns
+// a brand-new hidden overlay window on top of whatever is already running
+// (LSUIElement:true means there's no Dock icon or Cmd-Tab entry for any of
+// them to reveal the pile-up). Must run before app.whenReady()/createWindow().
+// The second launch just asks the first instance to show itself, then exits.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  // Another instance already holds the lock — hand off to it and stop
+  // executing immediately. app.quit() alone isn't enough here: it only
+  // schedules a quit, and the rest of this file (window creation, all the
+  // ipcMain handlers) would still run once before that quit takes effect.
+  app.quit();
+  process.exit(0);
+}
+app.on('second-instance', () => {
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  } else {
+    createWindow();
+  }
+});
+
 // macOS system-audio loopback (the "them" channel via getDisplayMedia) does not
 // start on Electron 31–38 unless these Chromium features are enabled; without
 // them getDisplayMedia rejects with "Error starting capture" and meeting audio
