@@ -77,7 +77,7 @@ const WIN_SUPPORTS_CONTENT_PROTECTION = !isWindows || WIN_BUILD >= 19041;
 
 let permWin = null;
 
-// -------- meetings / study / usage (our additions on top of upstream cue) --------
+// -------- meetings / study / usage --------
 // All three stores are plain local JSON files under Electron's userData dir —
 // same pattern store.js already uses, no new dependency, nothing leaves the
 // machine except what the user explicitly exports or asks the AI provider.
@@ -638,7 +638,7 @@ async function runFeature(mode, userText) {
     const settingsForPrompt = store.getSettings();
     const contextBlock = buildInterviewContext(settingsForPrompt, mode, transcript);
     let system = def.buildSystem ? def.buildSystem(contextBlock, settingsForPrompt.aiRules || '') : (def.system || '');
-    // Cross-meeting memory — the one thing upstream cue never had: every prior
+    // Cross-meeting memory: every prior
     // meeting's summary is on disk (src/meetings.js) but was never read back.
     // Modes that reason about an ongoing relationship (not raw coding answers)
     // get the last few meetings' summaries so Aside can say "like last time"

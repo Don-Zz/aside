@@ -1,9 +1,17 @@
 {
   "name": "aside",
   "version": "0.3.0",
-  "description": "Aside — an open-source AI copilot that floats over your screen for live meetings and coding problems. Forked and extended from cue (Blueturboguy07/cue) with meeting-summary export, study flashcards, and a usage dashboard.",
+  "description": "Aside — an open-source AI copilot by Mohammed Beheiry that floats over your screen for live meetings and coding problems, with meeting-summary export, study flashcards, and a usage dashboard.",
   "license": "GPL-3.0-or-later",
   "author": "Mohammed Beheiry",
+  "homepage": "https://github.com/Don-Zz/aside#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Don-Zz/aside.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Don-Zz/aside/issues"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",

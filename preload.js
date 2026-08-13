@@ -27,7 +27,7 @@ contextBridge.exposeInMainWorld('cue', {
   appLinkConsentRespond: (id, allowed) => ipcRenderer.send('applink:consent-response', { id, allowed }),
   pickProfileDocument: () => ipcRenderer.invoke('profile:pickDocument'),
   quit: () => ipcRenderer.send('app:quit'),
-  // -- meetings / study / usage (added on top of upstream cue) --
+  // -- meetings / study / usage --
   meetingsList: () => ipcRenderer.invoke('meetings:list'),
   meetingOpen: (filePath) => ipcRenderer.invoke('meetings:open', filePath),
   flashcardsList: () => ipcRenderer.invoke('flashcards:list'),

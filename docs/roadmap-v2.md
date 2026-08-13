@@ -43,9 +43,8 @@ Replaces the current 5-step tutorial with a real intake flow, all still local:
 - What's this for: **Personal / Business / Fun**, and **Meetings / Interviews /
   Both** — stored as a `useCase` setting, used to pick which system-prompt
   language shows by default (the "candidate/interviewer" framing vs. a
-  general "conversation copilot" framing — this is also where I'd finally
-  fully de-interview-ify the parts of upstream `cue`'s prompts that don't fit
-  your stated personal/business use)
+  general "conversation copilot" framing — this is also where the app can
+  fully separate interview-specific prompts from general personal/business use)
 - If Business: **industry picker** (Consulting, Freelancing, Sales, Real
   estate, Photography, Other — free text) — feeds a small set of tailored
   talking-point prompts per industry, same pattern as the résumé context

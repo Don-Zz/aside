@@ -4,7 +4,7 @@
 
 **An open-source AI copilot that floats over your screen — sees what you see, hears your meetings, and stays hidden from screen shares.**
 
-A free, self-hosted, MIT-of-spirit-but-actually-GPL alternative to Cluely. Bring your own AI key (OpenAI · Anthropic · Google Gemini · OpenAI-compatible endpoints). Forked from [`Blueturboguy07/cue`](https://github.com/Blueturboguy07/cue) and extended with meeting-summary export, spaced-repetition study flashcards, and a usage/cost dashboard.
+Created and maintained by **Mohammed Beheiry**. Aside is a free, self-hosted, GPL-licensed alternative to Cluely. Bring your own AI key (OpenAI · Anthropic · Google Gemini · OpenAI-compatible endpoints). The project includes meeting-summary export, spaced-repetition study flashcards, local usage/cost tracking, and cross-meeting memory.
 
 </div>
 
@@ -29,7 +29,7 @@ Aside floats a small glass panel on top of everything. It takes **three separate
 | **Solve a coding problem** | `⌘` `H` (macOS) or `Ctrl` `H` (Windows) | your screen only |
 | **Smart** toggle | pill in the box | switches to a smarter (slower) model |
 
-Three things this fork adds on top of upstream `cue` — all local-first, no server:
+Core modules — all local-first, no server:
 
 - **📁 Meetings** — every listening session is auto-summarized (summary / key points / decisions / action items) the moment you stop listening, and saved as a Markdown file to `~/Documents/aside-meetings/`. The Settings → Meetings tab lists them all.
 - **📚 Study** — turn any meeting into a set of spaced-repetition flashcards with one click. Reviews use a Leitner schedule (miss a card, see it again tomorrow; get it right, the gap grows).
@@ -140,7 +140,7 @@ renderer ──────┴─ the glass UI + mic capture + system-audio loop
 ## Privacy
 
 - No accounts, hosted service, or telemetry. Aside collects nothing.
-- API keys and your optional résumé/profile text live in a local file (`cue-data.json`, still using the upstream filename internally) and are sent only to the provider you chose.
+- API keys and your optional résumé/profile text live in a local data file and are sent only to the provider you chose.
 - Meeting notes, flashcards, and usage stats are local JSON files under Electron's userData directory — nothing leaves your machine except what an AI request needs and what you explicitly export as Markdown.
 - Audio utterances and the live transcript stay in memory; Aside does not write captured audio to disk. Downloaded local model files remain on disk until you delete them.
 
@@ -148,10 +148,10 @@ renderer ──────┴─ the glass UI + mic capture + system-audio loop
 
 Issues and PRs welcome. The codebase stays small and readable on purpose — `main.js` (app + capture + AI + meetings/study/usage), `renderer/` (the UI), `src/` (providers, stores). No build step for the source (plain HTML/CSS/JS).
 
-## Credits & license
+## Author, open source, and license
 
-Forked from the open-source [`Blueturboguy07/cue`](https://github.com/Blueturboguy07/cue), itself built as a study of how tools like **Cluely** and **Interview Coder** work, modeled on the open-source clones `pickle-com/glass` and `sohzm/cheating-daddy`. This fork removes a Windows-only feature that disguised the app's process as `MicrosoftEdgeUpdate.exe` in Task Manager (not something a transparent, "you're responsible for how you use it" tool should be doing), adds the Meetings/Study/Usage features above, and restyles the UI with an original palette and app icon.
+Aside is authored and maintained by **Mohammed Beheiry** as an open-source desktop AI copilot. You are free to fork it, study it, modify it, and use it under the license terms below.
 
 Local transcription uses [whisper.cpp](https://github.com/ggml-org/whisper.cpp), distributed under the MIT License.
 
-**License: [GPL-3.0-or-later](LICENSE)** — inherited from upstream. You're free to use, modify, and redistribute this, including commercially, as long as anything you distribute stays GPL-licensed with source available. See [gnu.org/licenses/gpl-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html) if you're planning to build a business on top of it — the license shapes what that business model can look like.
+**License: [GPL-3.0-or-later](LICENSE)** — you're free to use, modify, and redistribute this, including commercially, as long as anything you distribute stays GPL-licensed with source available. See [gnu.org/licenses/gpl-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html) if you're planning to build a business on top of it — the license shapes what that business model can look like.

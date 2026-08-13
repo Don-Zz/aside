@@ -1,4 +1,4 @@
-/* Aside — glassmorphism overlay, warm spotlight palette (forked from cue, restyled). */
+/* Aside — glassmorphism overlay, warm spotlight palette. */
 
 :root {
   --accent: #E3A73C;
@@ -572,7 +572,7 @@ button:focus { outline: none; }
 .s-counter.s-counter-warn { color: #F5B547; }
 .s-counter.s-counter-warn #ai-rules-count.over { color: #ff6b6b; }
 
-/* Meetings / Study / Usage tabs (added on top of upstream cue) */
+/* Meetings / Study / Usage tabs */
 .s-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .s-list-empty { color: var(--tx-mut); font-size: 11.5px; padding: 8px 0; }
 .s-row {

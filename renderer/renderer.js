@@ -1377,7 +1377,7 @@
     }
   }
 
-  // ---- meetings / study / usage tabs (added on top of upstream cue) ------
+  // ---- meetings / study / usage tabs ------
 
   function fmtDate(ms) {
     return ms ? new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
