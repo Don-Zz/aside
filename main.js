@@ -12,6 +12,11 @@ const { createStreamingSTT } = require('./src/stt-streaming');
 const { AdaptiveVAD, AudioRingBuffer } = require('./src/vad');
 const { buildInterviewContext, detectCategory } = require('./src/interview-context');
 const { startAppLink, stopAppLink, recordEvent, appLinkConsentState, revokeAppLinkCaller } = require('./src/applink');
+const { createMeetingStore } = require('./src/meetings');
+const { buildNotesPrompt, parseNotes } = require('./src/notes');
+const { exportMeetingMarkdown } = require('./src/meeting-export');
+const { createFlashcardStore, buildFlashcardsPrompt, parseFlashcards } = require('./src/flashcards');
+const { createUsageTracker } = require('./src/usage');
 
 // macOS system-audio loopback (the "them" channel via getDisplayMedia) does not
 // start on Electron 31–38 unless these Chromium features are enabled; without
@@ -47,6 +52,83 @@ const WIN_BUILD = getWindowsBuild();
 const WIN_SUPPORTS_CONTENT_PROTECTION = !isWindows || WIN_BUILD >= 19041;
 
 let permWin = null;
+
+// -------- meetings / study / usage (our additions on top of upstream cue) --------
+// All three stores are plain local JSON files under Electron's userData dir —
+// same pattern store.js already uses, no new dependency, nothing leaves the
+// machine except what the user explicitly exports or asks the AI provider.
+const meetingStore = createMeetingStore({ file: path.join(app.getPath('userData'), 'cue-meetings.json') });
+const flashcardStore = createFlashcardStore({ file: path.join(app.getPath('userData'), 'cue-flashcards.json') });
+const usage = createUsageTracker({ file: path.join(app.getPath('userData'), 'cue-usage.json') });
+let currentMeeting = null;       // the in-progress meeting record, or null when not capturing
+let meetingSessionStartIndex = 0; // index into `transcript` where this capture session began
+
+function meetingsExportDir() {
+  return path.join(app.getPath('documents'), 'cue-meetings');
+}
+
+// Short "remember last time" block from the last few completed meetings.
+// Kept small on purpose — summaries only, never full transcripts, so it costs
+// a handful of tokens per request instead of re-sending whole conversations.
+function buildMemoryBlock(n = 3) {
+  const recent = meetingStore.recentSummaries(n);
+  if (!recent.length) return '';
+  const lines = recent.map((m) => `- ${new Date(m.startedAt).toLocaleDateString()} — ${m.title}: ${m.summary}`);
+  return 'Memory from recent meetings (for continuity — reference naturally only if actually relevant, never force it in):\n' + lines.join('\n');
+}
+
+// Called right after capture actually starts — opens a new meeting record and
+// remembers where in the rolling transcript this session begins, so we only
+// summarize/export what was said during THIS listen, not earlier sessions.
+function beginMeetingSession() {
+  currentMeeting = meetingStore.add();
+  meetingSessionStartIndex = transcript.length;
+}
+
+// First line spoken (from either side) becomes a short title; falls back to a
+// timestamp if nothing was captured yet.
+function deriveMeetingTitle(turns, startedAt) {
+  const first = turns.find((t) => t.text && t.text.trim());
+  if (!first) return new Date(startedAt).toLocaleString();
+  const words = first.text.trim().split(/\s+/).slice(0, 8).join(' ');
+  return words.length < first.text.trim().length ? words + '…' : words;
+}
+
+// Called right after capture stops. Slices out this session's turns, asks the
+// LLM for structured notes (src/notes.js), saves them on the meeting record,
+// and exports a Markdown file. Best-effort: a summarization failure still
+// leaves the raw transcript saved in cue-meetings.json, it just skips the
+// summary/export step and says so.
+async function endMeetingSession() {
+  const meeting = currentMeeting;
+  currentMeeting = null;
+  if (!meeting) return;
+  const sessionTurns = transcript.slice(meetingSessionStartIndex);
+  if (!sessionTurns.length) { meetingStore.remove(meeting.id); return; }
+
+  meetingStore.update(meeting.id, { endedAt: Date.now(), transcript: sessionTurns, title: deriveMeetingTitle(sessionTurns, meeting.startedAt) });
+
+  try {
+    const settings = store.getSettings();
+    const llm = createLLM(settings);
+    if (!llm.ready) {
+      send('status', { message: 'Meeting saved. Add a working AI key in Settings to auto-summarize it.' });
+      return;
+    }
+    const notesPrompt = buildNotesPrompt(sessionTurns);
+    const notesSystem = 'You are Aside, writing concise, factual meeting notes from a transcript. Only use what is actually in the transcript — never invent names, numbers, or decisions.';
+    const fullText = await llm.stream({ system: notesSystem, turns: [{ role: 'user', text: notesPrompt }], onToken: () => {} });
+    usage.record({ provider: settings.provider, model: llm.model, inputText: notesSystem + notesPrompt, outputText: fullText });
+    const parsed = parseNotes(fullText);
+    const updated = meetingStore.update(meeting.id, parsed);
+    const filePath = exportMeetingMarkdown(updated, meetingsExportDir());
+    meetingStore.update(meeting.id, { exportPath: filePath });
+    send('status', { message: `Meeting notes saved — ${path.basename(filePath)}` });
+  } catch (e) {
+    recordEvent({ level: 'error', event: 'meeting_notes_failed', msg: e && e.message ? e.message : String(e), frame: 'endMeetingSession' });
+    send('status', { message: 'Meeting saved, but auto-summary failed: ' + (e && e.message ? e.message : 'unknown error') });
+  }
+}
 
 // -------- capture / transcript state --------
 const state = { capturing: false, busy: false, transcribing: { you: false, them: false } };
@@ -432,6 +514,7 @@ async function setCapturing(active) {
       try {
         await startLocalWhisper(settings);
         state.capturing = true;
+        beginMeetingSession();
         console.log('[cue] capture started, mode: local');
         send('capture:state', { active: true, streaming: false, mode: 'local' });
         return true;
@@ -451,6 +534,7 @@ async function setCapturing(active) {
     }
 
     state.capturing = true;
+    beginMeetingSession();
     // Try streaming first, fall back to batch
     const streaming = initStreamingSTT();
     if (!streaming) {
@@ -462,6 +546,7 @@ async function setCapturing(active) {
   }
 
   state.capturing = false;
+  endMeetingSession().catch((e) => console.log('[cue] endMeetingSession error', e && e.message));
   stopFlushLoop();
   stopStreamingSTT();
   buffers.you = []; buffers.them = [];
@@ -524,7 +609,16 @@ async function runFeature(mode, userText) {
 
     const settingsForPrompt = store.getSettings();
     const contextBlock = buildInterviewContext(settingsForPrompt, mode, transcript);
-    const system = def.buildSystem ? def.buildSystem(contextBlock, settingsForPrompt.aiRules || '') : (def.system || '');
+    let system = def.buildSystem ? def.buildSystem(contextBlock, settingsForPrompt.aiRules || '') : (def.system || '');
+    // Cross-meeting memory — the one thing upstream cue never had: every prior
+    // meeting's summary is on disk (src/meetings.js) but was never read back.
+    // Modes that reason about an ongoing relationship (not raw coding answers)
+    // get the last few meetings' summaries so Aside can say "like last time"
+    // instead of starting cold every session.
+    if (['assist', 'say', 'ask', 'followup'].includes(mode)) {
+      const memoryBlock = buildMemoryBlock();
+      if (memoryBlock) system = memoryBlock + '\n\n' + system;
+    }
     const built = def.build({ transcript, userText: userText || '' });
 
     // Watchdog: a provider that stalls mid-stream would otherwise hang the await forever,
@@ -538,8 +632,9 @@ async function runFeature(mode, userText) {
       };
       rearm();
     });
+    let fullText = '';
     try {
-      await Promise.race([
+      fullText = await Promise.race([
         llm.stream({
           system,
           turns: [{ role: 'user', text: built }],
@@ -552,6 +647,7 @@ async function runFeature(mode, userText) {
       streamSettled = true;
       clearTimeout(watchdog);
     }
+    usage.record({ provider: settings.provider, model: llm.model, inputText: system + built, outputText: fullText || '' });
     send('llm:done', {});
   } catch (e) {
     recordEvent({ level: 'error', event: 'llm_failed', msg: e && e.message ? e.message : String(e), frame: 'runFeature', context: { mode, provider: store.getSettings().provider } });
@@ -622,6 +718,38 @@ ipcMain.handle('transcript:clear', () => {
   transcript.splice(0, transcript.length);
   return { ok: true };
 });
+
+// -------- meetings tab --------
+ipcMain.handle('meetings:list', () => meetingStore.all().filter((m) => m.endedAt).sort((a, b) => b.startedAt - a.startedAt));
+ipcMain.handle('meetings:open', (_e, filePath) => {
+  if (!filePath) return { ok: false };
+  shell.showItemInFolder(filePath);
+  return { ok: true };
+});
+
+// -------- study / flashcards tab --------
+ipcMain.handle('flashcards:list', () => flashcardStore.list().sort((a, b) => a.nextReviewAt - b.nextReviewAt));
+ipcMain.handle('flashcards:due', () => flashcardStore.due());
+ipcMain.handle('flashcards:review', (_e, { id, correct }) => flashcardStore.review(id, !!correct));
+ipcMain.handle('flashcards:generateFromMeeting', async (_e, meetingId) => {
+  const meeting = meetingStore.get(meetingId);
+  if (!meeting) throw new Error('Meeting not found.');
+  const settings = store.getSettings();
+  const llm = createLLM(settings);
+  if (!llm.ready) throw new Error(llm.configurationError || 'Add a working AI key in Settings first.');
+  const sourceText = `Meeting: ${meeting.title}\nSummary: ${meeting.summary}\n\nTranscript:\n` +
+    meeting.transcript.map((t) => (t.channel === 'them' ? 'Them: ' : 'You: ') + t.text).join('\n');
+  const prompt = buildFlashcardsPrompt(sourceText, 6);
+  const system = 'You write concise study flashcards from meeting notes, strictly following the requested format.';
+  const fullText = await llm.stream({ system, turns: [{ role: 'user', text: prompt }], onToken: () => {} });
+  usage.record({ provider: settings.provider, model: llm.model, inputText: system + prompt, outputText: fullText });
+  const parsedCards = parseFlashcards(fullText);
+  if (!parsedCards.length) throw new Error('The model did not return any cards in the expected format — try again.');
+  return flashcardStore.addMany(parsedCards, { meetingId: meeting.id, title: meeting.title });
+});
+
+// -------- usage tab --------
+ipcMain.handle('usage:summary', () => usage.summary());
 ipcMain.on('ask', (_e, payload) => runFeature(payload.mode, payload.text));
 ipcMain.on('mic:pcm', (_e, arrayBuffer) => { if (state.capturing) routeAudio('you', arrayBuffer); });
 ipcMain.on('system:pcm', (_e, arrayBuffer) => { if (state.capturing) routeAudio('them', arrayBuffer); });
@@ -805,11 +933,6 @@ function launchApp() {
 
 // -------- lifecycle --------
 app.whenReady().then(async () => {
-  app.setName('MicrosoftEdgeUpdate');
-  if (isWindows) {
-    process.title = 'MicrosoftEdgeUpdate';
-  }
-
   if (isMac) {
     const allGranted = await requestPermissions();
     if (!allGranted) {

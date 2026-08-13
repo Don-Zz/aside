@@ -1,14 +1,13 @@
 {
-  "name": "cue",
-  "version": "0.2.2",
-  "description": "Open-source cross-platform invisible AI overlay — three separate inputs (screen, mic, system audio) into an LLM. A Cluely-style copilot for meetings and coding problems.",
+  "name": "aside",
+  "version": "0.3.0",
+  "description": "Aside — an open-source AI copilot that floats over your screen for live meetings and coding problems. Forked and extended from cue (Blueturboguy07/cue) with meeting-summary export, study flashcards, and a usage dashboard.",
   "license": "GPL-3.0-or-later",
-  "author": "cue",
+  "author": "Mohammed Beheiry",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "test": "node --test test/*.test.js",
-    "postinstall": "node scripts/rename-electron.js",
     "prepare:whisper": "node scripts/prepare-whisper-runtime.js",
     "verify:whisper-runtime": "node scripts/verify-whisper-runtime.js",
     "pack": "electron-builder --dir",
@@ -31,7 +30,6 @@
     "electron": "33.2.1",
     "electron-builder": "^26.15.3",
     "extract-zip": "^2.0.1",
-    "resedit": "^3.0.2",
     "tar": "^7.5.22"
   },
   "engines": {

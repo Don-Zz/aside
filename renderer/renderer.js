@@ -1,4 +1,4 @@
-/* cue renderer — UI state, mic capture, IPC, streaming render. */
+/* Aside renderer — UI state, mic capture, IPC, streaming render. */
 (function () {
   const { icon } = window.ICONS;
   const cue = window.cue; // exposed by preload
@@ -664,8 +664,8 @@
         showStatus('No microphone was found. Plug one in, or pick a default input device in your OS sound settings, then try again.');
       } else if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
         showStatus(isWindows
-          ? 'Microphone permission was denied. Settings → Privacy & security → Microphone → allow cue, then try again.'
-          : 'Microphone permission was denied. System Settings → Privacy & Security → Microphone → allow cue, then try again.');
+          ? 'Microphone permission was denied. Settings → Privacy & security → Microphone → allow Aside, then try again.'
+          : 'Microphone permission was denied. System Settings → Privacy & Security → Microphone → allow Aside, then try again.');
       } else if (name === 'NotReadableError' || name === 'TrackStartError') {
         showStatus('The microphone could not be started — another application may be using it exclusively. Close other apps using the mic and try again.');
       } else {
@@ -744,7 +744,7 @@
     } catch (err) {
       const message = err && err.message ? err.message : String(err);
       cue.log('system audio error: ' + message);
-      showStatus('Meeting audio could not be started. Grant screen/audio access to cue and try again.');
+      showStatus('Meeting audio could not be started. Grant screen/audio access to Aside and try again.');
     } finally {
       sysStarting = false;
     }
@@ -1201,7 +1201,7 @@
     banner.innerHTML =
       '<div class="mic-perm-text">' +
         '<strong>🎙️ Microphone access required</strong><br>' +
-        'cue needs microphone permission to hear you during calls. Grant access in System Settings, then restart cue.' +
+        'Aside needs microphone permission to hear you during calls. Grant access in System Settings, then restart Aside.' +
       '</div>' +
       '<div class="mic-perm-actions"></div>';
     const actions = banner.querySelector('.mic-perm-actions');
@@ -1230,6 +1230,9 @@
     fillSettings();
     scrim.classList.remove('hidden');
     refreshWhisperModels();
+    refreshMeetingsPane();
+    refreshStudyPane();
+    refreshUsagePane();
   }
   function closeSettings() { saveSettings(); scrim.classList.add('hidden'); }
   $('#more-btn').addEventListener('click', openSettings);
@@ -1330,6 +1333,184 @@
       row.append(label, button);
       host.append(row);
     }
+  }
+
+  // ---- meetings / study / usage tabs (added on top of upstream cue) ------
+
+  function fmtDate(ms) {
+    return ms ? new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  }
+
+  async function refreshMeetingsPane() {
+    const dirNote = $('#meetings-export-dir');
+    const host = $('#meetings-list');
+    if (!host || !cue.meetingsList) return;
+    if (dirNote) dirNote.textContent = 'Saved to your Documents/cue-meetings folder as Markdown.';
+    let meetings;
+    try { meetings = await cue.meetingsList(); } catch (_) { return; }
+    host.innerHTML = '';
+    if (!meetings.length) {
+      host.innerHTML = '<div class="s-list-empty">No meetings yet — start listening, then stop to get notes here.</div>';
+      return;
+    }
+    for (const m of meetings) {
+      const row = document.createElement('div');
+      row.className = 's-row';
+
+      const top = document.createElement('div');
+      top.className = 's-row-top';
+      const title = document.createElement('span');
+      title.className = 's-row-title';
+      title.textContent = m.title || 'Untitled meeting';
+      const meta = document.createElement('span');
+      meta.className = 's-row-meta';
+      meta.textContent = fmtDate(m.startedAt);
+      top.append(title, meta);
+
+      const summary = document.createElement('div');
+      summary.className = 's-row-summary';
+      summary.textContent = m.summary || '(no summary — check your AI key in Keys tab)';
+
+      const actions = document.createElement('div');
+      actions.className = 's-row-actions';
+      if (m.exportPath) {
+        const openBtn = document.createElement('button');
+        openBtn.className = 's-action';
+        openBtn.textContent = 'Show file';
+        openBtn.addEventListener('click', () => cue.meetingOpen(m.exportPath));
+        actions.append(openBtn);
+      }
+      const studyBtn = document.createElement('button');
+      studyBtn.className = 's-action';
+      studyBtn.textContent = 'Make flashcards';
+      studyBtn.addEventListener('click', async () => {
+        studyBtn.disabled = true;
+        studyBtn.textContent = 'Generating…';
+        try {
+          await cue.flashcardsGenerateFromMeeting(m.id);
+          showStatus('Flashcards created — see the Study tab.');
+          refreshStudyPane();
+        } catch (e) {
+          showStatus('Could not generate flashcards: ' + (e && e.message ? e.message : e));
+        } finally {
+          studyBtn.disabled = false;
+          studyBtn.textContent = 'Make flashcards';
+        }
+      });
+      actions.append(studyBtn);
+
+      row.append(top, summary, actions);
+      host.append(row);
+    }
+  }
+
+  let reviewQueue = [];
+  let reviewCurrent = null;
+
+  async function refreshStudyPane() {
+    const listHost = $('#study-list');
+    const countEl = $('#study-due-count');
+    if (!listHost || !cue.flashcardsList) return;
+    let cards, due;
+    try {
+      [cards, due] = await Promise.all([cue.flashcardsList(), cue.flashcardsDue()]);
+    } catch (_) { return; }
+    if (countEl) countEl.textContent = `${due.length} card${due.length === 1 ? '' : 's'} due`;
+    listHost.innerHTML = '';
+    if (!cards.length) {
+      listHost.innerHTML = '<div class="s-list-empty">No flashcards yet — generate some from a meeting in the Meetings tab.</div>';
+      return;
+    }
+    for (const c of cards) {
+      const row = document.createElement('div');
+      row.className = 's-row';
+      const q = document.createElement('div');
+      q.className = 's-row-title';
+      q.textContent = c.question;
+      const a = document.createElement('div');
+      a.className = 's-row-summary';
+      a.textContent = c.answer;
+      const meta = document.createElement('div');
+      meta.className = 's-row-meta';
+      meta.textContent = (c.sourceTitle ? c.sourceTitle + ' · ' : '') + 'box ' + c.box + ' · next review ' + fmtDate(c.nextReviewAt);
+      row.append(q, a, meta);
+      listHost.append(row);
+    }
+  }
+
+  function showReviewCard(card) {
+    const wrap = $('#study-review-card');
+    const qEl = $('#study-card-q');
+    const aEl = $('#study-card-a');
+    const revealBtn = $('#study-reveal-btn');
+    const gotBtn = $('#study-got-btn');
+    const missBtn = $('#study-miss-btn');
+    if (!wrap) return;
+    reviewCurrent = card;
+    wrap.classList.remove('hidden');
+    qEl.textContent = card.question;
+    aEl.textContent = card.answer;
+    aEl.classList.add('hidden');
+    revealBtn.classList.remove('hidden');
+    gotBtn.classList.add('hidden');
+    missBtn.classList.add('hidden');
+  }
+
+  function endReviewSession(message) {
+    reviewQueue = []; reviewCurrent = null;
+    $('#study-review-card').classList.add('hidden');
+    if (message) showStatus(message);
+    refreshStudyPane();
+  }
+
+  $('#study-review-btn')?.addEventListener('click', async () => {
+    try { reviewQueue = await cue.flashcardsDue(); } catch (_) { reviewQueue = []; }
+    if (!reviewQueue.length) { showStatus('No cards due for review right now.'); return; }
+    showReviewCard(reviewQueue.shift());
+  });
+  $('#study-reveal-btn')?.addEventListener('click', () => {
+    $('#study-card-a').classList.remove('hidden');
+    $('#study-reveal-btn').classList.add('hidden');
+    $('#study-got-btn').classList.remove('hidden');
+    $('#study-miss-btn').classList.remove('hidden');
+  });
+  async function answerReviewCard(correct) {
+    if (!reviewCurrent) return;
+    try { await cue.flashcardsReview(reviewCurrent.id, correct); } catch (_) { /* ignore */ }
+    if (reviewQueue.length) showReviewCard(reviewQueue.shift());
+    else endReviewSession('Review session done.');
+  }
+  $('#study-got-btn')?.addEventListener('click', () => answerReviewCard(true));
+  $('#study-miss-btn')?.addEventListener('click', () => answerReviewCard(false));
+
+  function fmtUsd(n) { return '$' + (n || 0).toFixed(n >= 1 ? 2 : 4); }
+  function fmtTokens(n) { return (n || 0) >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n || 0); }
+
+  function fillUsageTable(tableEl, rows) {
+    if (!tableEl) return;
+    if (!rows.length) { tableEl.innerHTML = '<tr><td colspan="4" class="s-list-empty">Nothing yet.</td></tr>'; return; }
+    tableEl.innerHTML = '';
+    const head = document.createElement('tr');
+    head.innerHTML = '<th>Provider / model</th><th>Requests</th><th>Tokens (est.)</th><th>Cost (est.)</th>';
+    tableEl.append(head);
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      const label = document.createElement('td');
+      label.textContent = `${r.provider} · ${r.model}`;
+      const reqs = document.createElement('td'); reqs.textContent = String(r.requests);
+      const toks = document.createElement('td'); toks.textContent = fmtTokens(r.inputTokens + r.outputTokens);
+      const cost = document.createElement('td'); cost.textContent = fmtUsd(r.costUsd);
+      tr.append(label, reqs, toks, cost);
+      tableEl.append(tr);
+    }
+  }
+
+  async function refreshUsagePane() {
+    if (!cue.usageSummary) return;
+    let summary;
+    try { summary = await cue.usageSummary(); } catch (_) { return; }
+    fillUsageTable($('#usage-table-today'), summary.today || []);
+    fillUsageTable($('#usage-table-alltime'), summary.allTime || []);
   }
 
   const uploadResumeBtn = document.getElementById('upload-resume-btn');
@@ -1643,8 +1824,8 @@
   // ---- onboarding / first-run tutorial -----------------------------------
   const obScrim = $('#onboard-scrim');
   const permissionHelp = isWindows
-    ? 'cue needs permission to see and hear. Open Windows Privacy & security settings, allow <strong>Microphone</strong> and <strong>Screen recording</strong> for cue, then come back here.'
-    : 'cue needs two macOS permissions. Click each button, turn <strong>cue</strong> ON in the window that opens, then come back here.';
+    ? 'Aside needs permission to see and hear. Open Windows Privacy & security settings, allow <strong>Microphone</strong> and <strong>Screen recording</strong> for Aside, then come back here.'
+    : 'Aside needs two macOS permissions. Click each button, turn <strong>Aside</strong> ON in the window that opens, then come back here.';
   const permissionButtons = isWindows
     ? [
         { label: 'Open Microphone settings', action: () => cue.openPane('ms-settings:privacy-microphone') },
@@ -1660,30 +1841,30 @@
   const OB_STEPS = [
     {
       icon: '👋',
-      title: 'Welcome to cue',
-      body: 'cue is a private AI copilot that floats over your screen. It can <strong>see your screen</strong>, <strong>hear your meetings</strong>, and help you answer questions or solve coding problems — while staying hidden from most screen shares.<br><br>This quick guide gets you running in about a minute.'
+      title: 'Welcome to Aside',
+      body: 'Aside is a private AI copilot that floats over your screen. It can <strong>see your screen</strong>, <strong>hear your meetings</strong>, and help you answer questions or solve coding problems — while staying hidden from most screen shares.<br><br>This quick guide gets you running in about a minute.'
     },
     {
       icon: '🔐',
-      title: 'Allow cue to see & hear',
+      title: 'Allow Aside to see & hear',
       body: permissionHelp + '<ul><li><strong>Microphone</strong> — to hear you</li><li><strong>Screen recording</strong> — to see your screen and hear meeting audio</li></ul>',
       buttons: permissionButtons
     },
     {
       icon: '🔑',
       title: 'Connect an AI provider',
-      body: 'cue uses <strong>your own</strong> API key — pick <span class="hl">OpenAI</span>, <span class="hl">Anthropic</span>, <span class="hl">Google Gemini</span>, or <span class="hl">Azure AI Foundry</span>. Get a key from your provider, then paste it into cue\'s Settings.<br><br><strong>Tip:</strong> For the <em>best</em> real-time listening, add a <span class="hl">Deepgram</span> key (lowest latency streaming transcription). Otherwise, an OpenAI key enables streaming via the Realtime API, and Gemini/Whisper work as batch fallbacks.',
-      buttons: [{ label: 'Open cue Settings', action: () => { finishOnboard(); openSettings(); } }]
+      body: 'Aside uses <strong>your own</strong> API key — pick <span class="hl">OpenAI</span>, <span class="hl">Anthropic</span>, <span class="hl">Google Gemini</span>, or <span class="hl">Azure AI Foundry</span>. Get a key from your provider, then paste it into Aside\'s Settings.<br><br><strong>Tip:</strong> For the <em>best</em> real-time listening, add a <span class="hl">Deepgram</span> key (lowest latency streaming transcription). Otherwise, an OpenAI key enables streaming via the Realtime API, and Gemini/Whisper work as batch fallbacks.',
+      buttons: [{ label: 'Open Aside Settings', action: () => { finishOnboard(); openSettings(); } }]
     },
     {
       icon: '🫥',
       title: 'Stay hidden in Zoom',
-      body: 'cue is hidden from most screen shares automatically (Google Meet, Teams, QuickTime — nothing to do). <strong>Zoom needs one setting:</strong><br><br>Zoom → <span class="hl">Settings</span> → <span class="hl">Share Screen</span> → <span class="hl">Advanced</span> → <strong>Screen capture mode</strong> → choose <strong>“Advanced capture with window filtering.”</strong><br><br>Avoid “<strong>without</strong> window filtering” — that mode reveals cue.'
+      body: 'Aside is hidden from most screen shares automatically (Google Meet, Teams, QuickTime — nothing to do). <strong>Zoom needs one setting:</strong><br><br>Zoom → <span class="hl">Settings</span> → <span class="hl">Share Screen</span> → <span class="hl">Advanced</span> → <strong>Screen capture mode</strong> → choose <strong>“Advanced capture with window filtering.”</strong><br><br>Avoid “<strong>without</strong> window filtering” — that mode reveals Aside.'
     },
     {
       icon: '✨',
       title: 'You’re all set',
-      body: 'How to use cue:<ul><li>' + assistShortcut + ' — <strong>Assist</strong> with whatever\'s on screen or being said</li><li>' + solveShortcut + ' — solve a coding problem on screen</li><li>Click <strong>▢</strong> in the top bar to start listening to a meeting</li><li>Type a question and press <span class="kbd">↵</span></li></ul>Reopen this guide anytime by clicking the <strong>cue logo</strong>. Quit with ' + quitShortcut + '.'
+      body: 'How to use Aside:<ul><li>' + assistShortcut + ' — <strong>Assist</strong> with whatever\'s on screen or being said</li><li>' + solveShortcut + ' — solve a coding problem on screen</li><li>Click <strong>▢</strong> in the top bar to start listening to a meeting</li><li>Type a question and press <span class="kbd">↵</span></li></ul>Reopen this guide anytime by clicking the <strong>Aside logo</strong>. Quit with ' + quitShortcut + '.'
     }
   ];
   let obIndex = 0;

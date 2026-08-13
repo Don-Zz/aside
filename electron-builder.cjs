@@ -27,8 +27,8 @@ const canNotarize =
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
-  appId: "com.cue.overlay",
-  productName: "cue",
+  appId: "com.mohammedbeheiry.aside",
+  productName: "Aside",
   asar: false,
   publish: null,
   artifactName: "${productName}-${version}-${os}-${arch}.${ext}",
@@ -55,23 +55,23 @@ module.exports = {
     extendInfo: {
       LSUIElement: true,
       NSMicrophoneUsageDescription:
-        "cue transcribes your microphone so it can help you in conversations.",
-      NSCameraUsageDescription: "cue does not use the camera.",
+        "Aside transcribes your microphone so it can help you in conversations.",
+      NSCameraUsageDescription: "Aside does not use the camera.",
       NSAudioCaptureUsageDescription:
-        "cue captures system audio to transcribe the other participant in a call.",
+        "Aside captures system audio to transcribe the other participant in a call.",
     },
   },
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     artifactName: "${productName}-win-${arch}.${ext}",
   },
-  // A per-user install with a visible directory step: cue is a personal overlay,
+  // A per-user install with a visible directory step: Aside is a personal overlay,
   // not a machine-wide service, so it should never need an elevation prompt.
   nsis: {
     oneClick: false,
     perMachine: false,
     allowToChangeInstallationDirectory: true,
-    shortcutName: "cue",
+    shortcutName: "Aside",
   },
   linux: {
     target: [{ target: "AppImage", arch: ["x64", "arm64"] }],

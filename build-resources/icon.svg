@@ -1,0 +1,26 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#241A3D"/>
+      <stop offset="100%" stop-color="#0B0913"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#F0B94F" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#F0B94F" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFE7B3"/>
+      <stop offset="100%" stop-color="#E3A73C"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <circle cx="512" cy="430" r="360" fill="url(#glow)"/>
+
+  <!-- theatrical-aside mark: two soft parenthetical strokes cradling a spotlight dot -->
+  <g fill="none" stroke="url(#mark)" stroke-width="46" stroke-linecap="round">
+    <path d="M 386 330 C 300 420 300 604 386 694"/>
+    <path d="M 638 330 C 724 420 724 604 638 694"/>
+  </g>
+  <circle cx="512" cy="512" r="64" fill="url(#mark)"/>
+</svg>
