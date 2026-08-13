@@ -127,12 +127,18 @@
         <div class="s-seg" id="provider-seg">
           <button data-provider="anthropic">Claude</button>
           <button data-provider="openai">GPT</button>
+          <button data-provider="custom">OpenRouter</button>
         </div>
 
         <label class="s-label">API keys <span class="s-hint">stored locally · never sent to any server</span></label>
         <div class="s-field"><span>Claude</span><input id="key-anthropic" type="password" placeholder="sk-ant-..." autocomplete="off" /></div>
         <div class="s-field"><span>GPT</span><input id="key-openai" type="password" placeholder="sk-..." autocomplete="off" /></div>
         <div class="s-field"><span>Deepgram</span><input id="key-deepgram" type="password" placeholder="dg-... (optional — best live-transcription quality)" autocomplete="off" /></div>
+
+        <div id="openrouter-settings" class="hidden">
+          <div class="s-field"><span>OpenRouter</span><input id="key-openrouter" type="password" placeholder="sk-or-v1-..." autocomplete="off" /></div>
+          <div class="s-note">Free models are tagged <code>:free</code> on <a href="#" data-open-pane="https://openrouter.ai/models?max_price=0">openrouter.ai/models</a> — the defaults below are set to one, but any OpenRouter model slug works in the Fast/Smart fields.</div>
+        </div>
 
         <label class="s-label">Models <span class="s-hint">fast = Smart off · smart = Smart on · leave blank for the default</span></label>
         <div class="s-field"><span>Fast</span><input id="model-fast" type="text" autocomplete="off" /></div>

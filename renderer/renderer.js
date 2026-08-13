@@ -1187,7 +1187,7 @@
   }
 
   // ---- toolbar provider-status pill — "is this actually connected" at a glance ----
-  const PROVIDER_STATUS_LABELS = { openai: 'GPT', anthropic: 'Claude', deepgram: 'Deepgram' };
+  const PROVIDER_STATUS_LABELS = { openai: 'GPT', anthropic: 'Claude', custom: 'OpenRouter', deepgram: 'Deepgram' };
   function updateProviderStatusPill() {
     if (!settings) return;
     const provider = settings.provider;
@@ -1276,12 +1276,34 @@
     });
   });
 
+  // OpenRouter needs a base URL and a model slug to work at all, but the
+  // point of adding it was "just paste a key and it works" — so fill both in
+  // automatically (only when actually empty) instead of asking the user to
+  // know what either of those things are. Free-tagged model as the default so
+  // it costs nothing until they deliberately pick something else.
+  function applyOpenRouterDefaults() {
+    if (!settings.baseUrl) settings.baseUrl = 'https://openrouter.ai/api/v1';
+    if (!settings.models.custom) settings.models.custom = {};
+    if (!settings.models.custom.fast) settings.models.custom.fast = 'meta-llama/llama-3.1-8b-instruct:free';
+    if (!settings.models.custom.smart) settings.models.custom.smart = 'anthropic/claude-3.5-sonnet';
+  }
+  function updateOpenRouterVisibility() {
+    $('#openrouter-settings').classList.toggle('hidden', settings.provider !== 'custom');
+  }
+  document.querySelectorAll('[data-open-pane]').forEach((el) => el.addEventListener('click', (e) => {
+    e.preventDefault();
+    cue.openPane(e.currentTarget.dataset.openPane);
+  }));
+
   function fillSettings() {
     // Keys tab
     document.querySelectorAll('#provider-seg button').forEach((b) => b.classList.toggle('on', b.dataset.provider === settings.provider));
     $('#key-openai').value = settings.apiKeys.openai || '';
     $('#key-anthropic').value = settings.apiKeys.anthropic || '';
     $('#key-deepgram').value = settings.apiKeys.deepgram || '';
+    $('#key-openrouter').value = settings.apiKeys.custom || '';
+    updateOpenRouterVisibility();
+    if (settings.provider === 'custom') applyOpenRouterDefaults();
     const m = settings.models[settings.provider] || { fast: '', smart: '' };
     $('#model-fast').value = m.fast; $('#model-smart').value = m.smart;
     updateProviderStatusPill();
@@ -1543,7 +1565,7 @@
 
   function statusText() {
     const k = settings.apiKeys;
-    const labels = { openai: 'GPT', anthropic: 'Claude', deepgram: 'Deepgram' };
+    const labels = { openai: 'GPT', anthropic: 'Claude', custom: 'OpenRouter', deepgram: 'Deepgram' };
     // 'auto' walks the same fallback chain src/stt.js builds; an explicit choice
     // is reported as-is so the status line matches what will actually be used.
     const selectedSttProvider = settings.sttProvider || 'auto';
@@ -1561,6 +1583,8 @@
   document.querySelectorAll('#provider-seg button').forEach((b) => b.addEventListener('click', () => {
     settings.provider = b.dataset.provider;
     document.querySelectorAll('#provider-seg button').forEach((x) => x.classList.toggle('on', x === b));
+    updateOpenRouterVisibility();
+    if (settings.provider === 'custom') applyOpenRouterDefaults();
     const m = settings.models[settings.provider] || { fast: '', smart: '' };
     $('#model-fast').value = m.fast; $('#model-smart').value = m.smart;
     $('#s-status').textContent = statusText();
@@ -1721,6 +1745,7 @@
     settings.apiKeys.openai = $('#key-openai').value.trim();
     settings.apiKeys.anthropic = $('#key-anthropic').value.trim();
     settings.apiKeys.deepgram = $('#key-deepgram').value.trim();
+    settings.apiKeys.custom = $('#key-openrouter').value.trim();
     if (!settings.models[settings.provider]) settings.models[settings.provider] = {};
     settings.models[settings.provider].fast = $('#model-fast').value.trim();
     settings.models[settings.provider].smart = $('#model-smart').value.trim();

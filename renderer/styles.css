@@ -521,6 +521,9 @@ button:focus { outline: none; }
 .s-select:focus { border-color: var(--accent); }
 .s-select.compact { flex: 1; width: auto; }
 .s-note { color: var(--tx-mut); font-size: 11.5px; line-height: 1.45; }
+.s-note a { color: var(--accent); text-decoration: none; }
+.s-note a:hover { text-decoration: underline; }
+.s-note code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; font-family: var(--mono); font-size: 10.5px; }
 .whisper-card {
   display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 12px;
   border: 1px solid rgba(255,255,255,0.10); border-radius: 12px;
