@@ -1279,13 +1279,22 @@
   // OpenRouter needs a base URL and a model slug to work at all, but the
   // point of adding it was "just paste a key and it works" — so fill both in
   // automatically (only when actually empty) instead of asking the user to
-  // know what either of those things are. Free-tagged model as the default so
-  // it costs nothing until they deliberately pick something else.
+  // know what either of those things are.
+  //
+  // Model slug verified live against https://openrouter.ai/api/v1/models —
+  // OpenRouter renames/retires slugs over time (an earlier default,
+  // anthropic/claude-3.5-sonnet, 404'd within the same day this was written),
+  // so hardcoding one here is inherently a snapshot, not a permanent fact.
+  // Both tiers point at the same real, working model rather than guessing at
+  // a ":free" slug too — OpenRouter's free tier is small/niche models that
+  // trade correctness for cost, which defeats the point of a "give me an
+  // accurate answer right now" assistant. Swap in a free model yourself via
+  // the link in Settings if cost matters more than answer quality to you.
   function applyOpenRouterDefaults() {
     if (!settings.baseUrl) settings.baseUrl = 'https://openrouter.ai/api/v1';
     if (!settings.models.custom) settings.models.custom = {};
-    if (!settings.models.custom.fast) settings.models.custom.fast = 'meta-llama/llama-3.1-8b-instruct:free';
-    if (!settings.models.custom.smart) settings.models.custom.smart = 'anthropic/claude-3.5-sonnet';
+    if (!settings.models.custom.fast) settings.models.custom.fast = 'anthropic/claude-sonnet-5';
+    if (!settings.models.custom.smart) settings.models.custom.smart = 'anthropic/claude-sonnet-5';
   }
   function updateOpenRouterVisibility() {
     $('#openrouter-settings').classList.toggle('hidden', settings.provider !== 'custom');

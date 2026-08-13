@@ -35,6 +35,15 @@ const DEFAULT_MODELS = {
 // otherwise an existing user would keep re-hitting the same 404 forever.
 const DEAD_GEMINI_MODEL_RE = /^gemini-(1\.0|1\.5|2\.0)(?:-|$)/i;
 
+// The OpenRouter default this app itself shipped (renderer/renderer.js
+// applyOpenRouterDefaults) 404'd within the same day it was written —
+// OpenRouter had already retired that slug. Same migrate-at-read-time
+// pattern as the Gemini one above, scoped to OpenRouter specifically (the
+// Custom provider can point anywhere, so only rewrite when the base URL is
+// actually OpenRouter's).
+const STALE_OPENROUTER_MODEL = 'anthropic/claude-3.5-sonnet';
+const CURRENT_OPENROUTER_MODEL = 'anthropic/claude-sonnet-5';
+
 const PROVIDER_LABELS = { azure: 'Azure AI Foundry', openai: 'OpenAI', minimax: 'MiniMax', 'claude-code': 'Claude Code', codex: 'Codex' };
 
 function normalizeProviderName(provider) {
@@ -91,7 +100,7 @@ function formatProviderErrorMessage(error, provider, model) {
 
   if (isNotFoundError(error)) {
     const modelHint = model ? ` "${model}"` : '';
-    return `${label} model${modelHint} is unavailable (404) — it may have been renamed, retired by the provider, or misspelled. Open Settings and pick a current model for ${label} (or clear the field to use cue's default), then try again.`;
+    return `${label} model${modelHint} is unavailable (404) — it may have been renamed, retired by the provider, or misspelled. Open Settings and pick a current model for ${label} (or clear the field to use Aside's default), then try again.`;
   }
 
   return rawMessage || 'Unknown LLM error.';
@@ -455,6 +464,9 @@ function createLLM(settings) {
   let model = (models[provider] || {})[tier];
   if (provider === 'gemini' && DEAD_GEMINI_MODEL_RE.test(model || '')) {
     model = CURRENT_GEMINI_DEFAULT;
+  }
+  if (provider === CUSTOM_PROVIDER && model === STALE_OPENROUTER_MODEL && /openrouter\.ai/i.test(settings.baseUrl || '')) {
+    model = CURRENT_OPENROUTER_MODEL;
   }
   if (!model) model = DEFAULT_MODELS[provider] || '';
   const minimaxRegion = settings.minimaxRegion || 'global_en';

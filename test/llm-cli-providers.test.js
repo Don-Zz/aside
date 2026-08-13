@@ -88,6 +88,29 @@ test('createLLM treats claude-code/codex as ready with no API key and no model s
   assert.strictEqual(codex.ready, true);
 });
 
+test('createLLM migrates the retired OpenRouter default model to the current one', () => {
+  const llm = createLLM({
+    provider: 'custom',
+    apiKeys: { custom: 'sk-or-v1-test' },
+    baseUrl: 'https://openrouter.ai/api/v1',
+    models: { custom: { fast: 'anthropic/claude-3.5-sonnet', smart: 'anthropic/claude-3.5-sonnet' } }
+  });
+  assert.strictEqual(llm.model, 'anthropic/claude-sonnet-5');
+});
+
+test('createLLM leaves the retired-elsewhere model name alone for a non-OpenRouter Custom endpoint', () => {
+  // Same string, but pointed at some other OpenAI-compatible server — that
+  // model name means whatever the operator of THAT server says it means, so
+  // the OpenRouter-specific migration must not touch it.
+  const llm = createLLM({
+    provider: 'custom',
+    apiKeys: { custom: 'k' },
+    baseUrl: 'http://127.0.0.1:18789/v1',
+    models: { custom: { fast: 'anthropic/claude-3.5-sonnet', smart: 'anthropic/claude-3.5-sonnet' } }
+  });
+  assert.strictEqual(llm.model, 'anthropic/claude-3.5-sonnet');
+});
+
 test('createLLM still requires an API key for a normal provider', () => {
   const llm = createLLM({ provider: 'openai', apiKeys: {}, models: {} });
   assert.strictEqual(llm.ready, false);
