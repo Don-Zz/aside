@@ -1256,6 +1256,28 @@
     $('#custom-endpoint-settings').classList.toggle('hidden', settings.provider !== 'custom');
   }
 
+  const CLI_PROVIDER_COMMANDS = { 'claude-code': 'claude', codex: 'codex' };
+  async function updateCliProviderNote() {
+    const note = $('#cli-provider-note');
+    const command = CLI_PROVIDER_COMMANDS[settings.provider];
+    if (!note) return;
+    note.classList.toggle('hidden', !command);
+    if (!command || !cue.cliCheck) return;
+    $('#cli-provider-cmd').textContent = command;
+    const statusEl = $('#cli-provider-status');
+    statusEl.textContent = 'Checking…';
+    statusEl.className = 'whisper-badge';
+    let result;
+    try { result = await cue.cliCheck(command); } catch (_) { result = { found: false }; }
+    if (result && result.found) {
+      statusEl.textContent = '✓ found' + (result.version ? ' · ' + result.version : '');
+      statusEl.className = 'whisper-badge ready';
+    } else {
+      statusEl.textContent = `⚠ "${command}" not found on PATH`;
+      statusEl.className = 'whisper-badge error';
+    }
+  }
+
   function fillSettings() {
     // Keys tab
     document.querySelectorAll('#provider-seg button').forEach((b) => b.classList.toggle('on', b.dataset.provider === settings.provider));
@@ -1274,6 +1296,8 @@
     $('#azure-endpoint').value = settings.azureEndpoint || '';
     const m = settings.models[settings.provider] || { fast: '', smart: '' };
     $('#model-fast').value = m.fast; $('#model-smart').value = m.smart;
+    updateCliProviderNote();
+    document.querySelectorAll('#leetcode-provider-seg button').forEach((b) => b.classList.toggle('on', b.dataset.leetcodeProvider === (settings.leetcodeProvider || '')));
     fillAppLinkCallers();
     $('#s-status').textContent = statusText();
     // Transcription tab
@@ -1532,7 +1556,7 @@
 
   function statusText() {
     const k = settings.apiKeys;
-    const labels = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', deepgram: 'Deepgram', custom: 'Custom', ollama: 'Ollama', groq: 'Groq', minimax: 'MiniMax', azure: 'Azure AI Foundry' };
+    const labels = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', deepgram: 'Deepgram', custom: 'Custom', ollama: 'Ollama', groq: 'Groq', minimax: 'MiniMax', azure: 'Azure AI Foundry', 'claude-code': 'Claude Code', codex: 'Codex' };
     const has = Object.keys(labels).filter((p) => k[p]).map((p) => labels[p]);
     // 'auto' walks the same fallback chain src/stt.js builds; an explicit choice
     // is reported as-is so the status line matches what will actually be used.
@@ -1552,10 +1576,15 @@
     settings.provider = b.dataset.provider;
     document.querySelectorAll('#provider-seg button').forEach((x) => x.classList.toggle('on', x === b));
     updateCustomProviderFields();
+    updateCliProviderNote();
     const m = settings.models[settings.provider] || { fast: '', smart: '' };
     $('#model-fast').value = m.fast; $('#model-smart').value = m.smart;
     $('#s-status').textContent = statusText();
     updateSmartTooltip();
+  }));
+  document.querySelectorAll('#leetcode-provider-seg button').forEach((b) => b.addEventListener('click', () => {
+    settings.leetcodeProvider = b.dataset.leetcodeProvider;
+    document.querySelectorAll('#leetcode-provider-seg button').forEach((x) => x.classList.toggle('on', x === b));
   }));
   document.querySelectorAll('#minimax-region-seg button').forEach((b) => b.addEventListener('click', () => {
     settings.minimaxRegion = b.dataset.region;

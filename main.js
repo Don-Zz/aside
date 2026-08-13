@@ -577,7 +577,11 @@ async function runFeature(mode, userText) {
   let streamSettled = false; // drop stray tokens from a stream we've already abandoned
   try {
     const settings = store.getSettings();
-    const llm = createLLM(settings);
+    // Coding problems can use a different provider than live-conversation modes
+    // (e.g. Codex for LeetCode, Claude/Gemini for Assist/Say) — see settings.leetcodeProvider.
+    // '' / 'same' means "use the main provider above", matching every other mode.
+    const effectiveProvider = (mode === 'leetcode' && settings.leetcodeProvider) ? settings.leetcodeProvider : settings.provider;
+    const llm = createLLM(effectiveProvider === settings.provider ? settings : { ...settings, provider: effectiveProvider });
     const userBubble = def.userBubble !== null
       ? def.userBubble
       : (mode === 'ask' ? userText : mode === 'answerThis' ? `"${(userText || '').slice(0, 60)}${userText && userText.length > 60 ? '…' : ''}"` : null);
@@ -585,7 +589,7 @@ async function runFeature(mode, userText) {
     send('llm:start', { userBubble, small: !!def.small, category });
 
     if (!llm.ready) {
-      const message = llm.configurationError || ('Complete the ' + settings.provider + ' provider settings. Model: ' + (llm.model || 'unset') + '.');
+      const message = llm.configurationError || ('Complete the ' + effectiveProvider + ' provider settings. Model: ' + (llm.model || 'unset') + '.');
       send('llm:error', { message });
       return;
     }
@@ -647,7 +651,7 @@ async function runFeature(mode, userText) {
       streamSettled = true;
       clearTimeout(watchdog);
     }
-    usage.record({ provider: settings.provider, model: llm.model, inputText: system + built, outputText: fullText || '' });
+    usage.record({ provider: effectiveProvider, model: llm.model, inputText: system + built, outputText: fullText || '' });
     send('llm:done', {});
   } catch (e) {
     recordEvent({ level: 'error', event: 'llm_failed', msg: e && e.message ? e.message : String(e), frame: 'runFeature', context: { mode, provider: store.getSettings().provider } });
@@ -750,6 +754,20 @@ ipcMain.handle('flashcards:generateFromMeeting', async (_e, meetingId) => {
 
 // -------- usage tab --------
 ipcMain.handle('usage:summary', () => usage.summary());
+
+// -------- CLI-provider availability check (Claude Code / Codex) --------
+// Quick "-v" probe so Settings can show found/not-found instead of the user
+// only discovering a missing CLI mid-conversation via an error toast.
+ipcMain.handle('cli:check', (_e, command) => new Promise((resolve) => {
+  if (!['claude', 'codex'].includes(command)) { resolve({ found: false, error: 'unknown command' }); return; }
+  let child;
+  try { child = require('child_process').spawn(command, ['--version']); }
+  catch { resolve({ found: false }); return; }
+  let out = '';
+  child.stdout && child.stdout.on('data', (c) => { out += c.toString('utf8'); });
+  child.on('error', () => resolve({ found: false }));
+  child.on('close', (code) => resolve({ found: code === 0, version: out.trim().slice(0, 80) }));
+}));
 ipcMain.on('ask', (_e, payload) => runFeature(payload.mode, payload.text));
 ipcMain.on('mic:pcm', (_e, arrayBuffer) => { if (state.capturing) routeAudio('you', arrayBuffer); });
 ipcMain.on('system:pcm', (_e, arrayBuffer) => { if (state.capturing) routeAudio('them', arrayBuffer); });

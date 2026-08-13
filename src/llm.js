@@ -1,9 +1,18 @@
 // LLM factory — OpenAI, Anthropic, Gemini, and OpenAI-compatible APIs behind one streaming interface.
 // stream({ system, turns:[{role,text}], imageDataUrl, maxTokens, onToken }) -> Promise<fullText>
 
+const { spawn } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { createCompatibleClientOptions } = require('./openai-compatible');
 
 const CUSTOM_PROVIDER = 'custom';
+// Providers that shell out to a locally-installed CLI (authenticated against a
+// Claude Pro/Max or ChatGPT/Codex subscription you're already paying for)
+// instead of calling a metered API with a key. No apiKey/model is required for
+// these — see createLLM()'s readiness check below.
+const CLI_PROVIDERS = new Set(['claude-code', 'codex']);
 // gemini-2.0-flash was Google's default here until it was deprecated (Feb 2026)
 // and fully retired (Mar 3 2026) — every request against it now 404s with a
 // generic "exception parsing response" body. gemini-2.5-flash is the model
@@ -26,7 +35,7 @@ const DEFAULT_MODELS = {
 // otherwise an existing user would keep re-hitting the same 404 forever.
 const DEAD_GEMINI_MODEL_RE = /^gemini-(1\.0|1\.5|2\.0)(?:-|$)/i;
 
-const PROVIDER_LABELS = { azure: 'Azure AI Foundry', openai: 'OpenAI', minimax: 'MiniMax' };
+const PROVIDER_LABELS = { azure: 'Azure AI Foundry', openai: 'OpenAI', minimax: 'MiniMax', 'claude-code': 'Claude Code', codex: 'Codex' };
 
 function normalizeProviderName(provider) {
   if (!provider) return 'provider';
@@ -292,6 +301,110 @@ async function streamOllama({ apiKey, model, system, turns, imageDataUrl, maxTok
   return full;
 }
 
+// ---- CLI-backed providers: Claude Code and Codex -------------------------
+// These run your own locally-installed, already-authenticated CLI instead of
+// calling a metered API — no apiKey, billed against whatever subscription you
+// logged the CLI into. Two real trade-offs vs. every provider above:
+//   1. No streaming — a CLI subprocess's stdout arrives in unpredictable
+//      chunks, not one token at a time, so onToken fires with larger pieces of
+//      text (or once at the end) rather than a smooth typewriter effect.
+//   2. A process spawn + the CLI's own startup cost adds real latency
+//      (roughly 1-3s+) versus a direct HTTP streaming call.
+// Exact CLI flags can drift between tool versions — if this errors, the raw
+// stderr is surfaced rather than swallowed, so the actual failure is visible
+// instead of a silent hang.
+
+// Pure argument-building, kept separate from spawning so it's unit-testable
+// without a real `claude`/`codex` install on the test machine.
+function buildClaudeCodeArgs({ system, prompt, model }) {
+  const fullPrompt = system ? `${system}\n\n${prompt}` : prompt;
+  const args = ['-p', fullPrompt, '--output-format', 'text'];
+  if (model) args.push('--model', model);
+  return args;
+}
+
+function buildCodexArgs({ system, prompt, model }) {
+  const fullPrompt = system ? `${system}\n\n${prompt}` : prompt;
+  const args = ['exec', fullPrompt, '--skip-git-repo-check'];
+  if (model) args.push('--model', model);
+  return args;
+}
+
+// Both CLIs are filesystem-capable coding agents, so a screenshot is passed
+// as a temp file path in the prompt text (not inline base64) — the agent
+// reads it with its own file tool. Cleaned up after the call either way.
+function writeTempScreenshot(imageDataUrl) {
+  const img = stripDataUrl(imageDataUrl);
+  if (!img) return null;
+  const ext = /png/i.test(img.mime) ? 'png' : /jpe?g/i.test(img.mime) ? 'jpg' : 'png';
+  const filePath = path.join(os.tmpdir(), `aside-screenshot-${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`);
+  fs.writeFileSync(filePath, Buffer.from(img.b64, 'base64'));
+  return filePath;
+}
+
+function withScreenshotNote(prompt, imagePath) {
+  if (!imagePath) return prompt;
+  return `${prompt}\n\nA screenshot for this request is saved at: ${imagePath}\nOpen and read that image file before answering.`;
+}
+
+// Spawns `command args`, streams stdout chunks through onToken as they
+// arrive, and resolves with the full combined stdout on a clean exit.
+function runCli(command, args, { onToken } = {}) {
+  return new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(command, args, { shell: false });
+    } catch (err) {
+      reject(new Error(`Could not start "${command}": ${err.message}`));
+      return;
+    }
+    let out = '';
+    let errText = '';
+    child.on('error', (e) => {
+      if (e.code === 'ENOENT') {
+        reject(new Error(`"${command}" was not found on your PATH. Install it and confirm "${command}" works from a terminal, then try again.`));
+      } else {
+        reject(new Error(`${command} failed to start: ${e.message}`));
+      }
+    });
+    child.stdout.on('data', (chunk) => {
+      const text = chunk.toString('utf8');
+      out += text;
+      if (onToken) onToken(text);
+    });
+    child.stderr.on('data', (chunk) => { errText += chunk.toString('utf8'); });
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`${command} exited with code ${code}${errText ? ': ' + errText.trim().slice(0, 500) : ''}`));
+        return;
+      }
+      resolve(out.trim());
+    });
+  });
+}
+
+async function streamClaudeCode({ system, turns, model, imageDataUrl, onToken }) {
+  const basePrompt = (turns[turns.length - 1] || {}).text || '';
+  const imagePath = writeTempScreenshot(imageDataUrl);
+  try {
+    const prompt = withScreenshotNote(basePrompt, imagePath);
+    return await runCli('claude', buildClaudeCodeArgs({ system, prompt, model }), { onToken });
+  } finally {
+    if (imagePath) fs.unlink(imagePath, () => {});
+  }
+}
+
+async function streamCodex({ system, turns, model, imageDataUrl, onToken }) {
+  const basePrompt = (turns[turns.length - 1] || {}).text || '';
+  const imagePath = writeTempScreenshot(imageDataUrl);
+  try {
+    const prompt = withScreenshotNote(basePrompt, imagePath);
+    return await runCli('codex', buildCodexArgs({ system, prompt, model }), { onToken });
+  } finally {
+    if (imagePath) fs.unlink(imagePath, () => {});
+  }
+}
+
 function createLLM(settings) {
   const provider = settings.provider;
   const keys = settings.apiKeys || {};
@@ -319,8 +432,9 @@ function createLLM(settings) {
     if (!model && !configurationError) {
       configurationError = 'Set a Fast or Smart model for the Custom provider.';
     }
-  } else if (provider !== 'ollama' && !apiKey) {
-    // Ollama is a local server: the field holds a URL, and no key is required.
+  } else if (provider !== 'ollama' && !CLI_PROVIDERS.has(provider) && !apiKey) {
+    // Ollama is a local server (field holds a URL) and the CLI providers use
+    // your already-logged-in `claude`/`codex` CLI — neither needs a key here.
     configurationError = `Add your ${provider} API key in Settings.`;
   }
 
@@ -329,7 +443,9 @@ function createLLM(settings) {
     configurationError = 'Add your Azure AI Foundry endpoint in Settings.';
   }
 
-  const ready = !configurationError && !!model;
+  // CLI providers pick their own default model when none is set (no
+  // DEFAULT_MODELS entry for them), so don't require one to be "ready".
+  const ready = !configurationError && (!!model || CLI_PROVIDERS.has(provider));
   const maxTokens = settings.smart ? 1400 : 700;
 
   return {
@@ -348,6 +464,8 @@ function createLLM(settings) {
         if (provider === 'anthropic') return await streamAnthropic(args);
         if (provider === 'gemini') return await streamGemini(args);
         if (provider === 'azure') return await streamAzure(args);
+        if (provider === 'claude-code') return await streamClaudeCode(args);
+        if (provider === 'codex') return await streamCodex(args);
         throw new Error('unknown provider: ' + provider);
       } catch (error) {
         throw new Error(formatProviderErrorMessage(error, provider, model));
@@ -356,4 +474,7 @@ function createLLM(settings) {
   };
 }
 
-module.exports = { createLLM, formatProviderErrorMessage, isQuotaError, CURRENT_GEMINI_DEFAULT };
+module.exports = {
+  createLLM, formatProviderErrorMessage, isQuotaError, CURRENT_GEMINI_DEFAULT,
+  CLI_PROVIDERS, buildClaudeCodeArgs, buildCodexArgs, runCli
+};

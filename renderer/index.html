@@ -119,7 +119,7 @@
       <!-- Tab: Keys -->
       <div class="s-body s-tab-pane" data-pane="keys">
         <label class="s-label">Provider</label>
-        <div class="s-seg" id="provider-seg">
+        <div class="s-seg s-seg-wrap" id="provider-seg">
           <button data-provider="openai">OpenAI</button>
           <button data-provider="anthropic">Anthropic</button>
           <button data-provider="gemini">Gemini</button>
@@ -128,6 +128,16 @@
           <button data-provider="groq">Groq</button>
           <button data-provider="minimax">MiniMax</button>
           <button data-provider="azure">Azure AI</button>
+          <button data-provider="claude-code">Claude Code</button>
+          <button data-provider="codex">Codex</button>
+        </div>
+
+        <div id="cli-provider-note" class="whisper-card hidden">
+          <div class="whisper-runtime-row">
+            <span class="s-label">Local CLI, not an API key</span>
+            <span id="cli-provider-status" class="whisper-badge">Checking…</span>
+          </div>
+          <div class="s-note">Uses your already-logged-in <code id="cli-provider-cmd">claude</code> command instead of a metered key — billed against whatever subscription that CLI is signed into, not per-token. Slower per answer (no streaming) and no API key field needed below.</div>
         </div>
 
         <label class="s-label">API keys &amp; URLs <span class="s-hint">stored locally · never sent to any server</span></label>
@@ -159,6 +169,16 @@
         <label class="s-label">Models <span class="s-hint">fast = Smart off · smart = Smart on</span></label>
         <div class="s-field"><span>Fast</span><input id="model-fast" type="text" autocomplete="off" /></div>
         <div class="s-field"><span>Smart</span><input id="model-smart" type="text" autocomplete="off" /></div>
+
+        <label class="s-label">Coding-problem provider <span class="s-hint">override just for "Solve what's on screen" — every other mode keeps using the provider above</span></label>
+        <div class="s-seg s-seg-wrap" id="leetcode-provider-seg">
+          <button data-leetcode-provider="">Same as above</button>
+          <button data-leetcode-provider="openai">OpenAI</button>
+          <button data-leetcode-provider="anthropic">Anthropic</button>
+          <button data-leetcode-provider="gemini">Gemini</button>
+          <button data-leetcode-provider="claude-code">Claude Code</button>
+          <button data-leetcode-provider="codex">Codex</button>
+        </div>
 
         <label class="s-label">Assistant access <span class="s-hint">programs allowed to see what Aside is doing</span></label>
         <div class="s-callers" id="applink-callers"></div>

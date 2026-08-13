@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('cue', {
   flashcardsReview: (id, correct) => ipcRenderer.invoke('flashcards:review', { id, correct }),
   flashcardsGenerateFromMeeting: (meetingId) => ipcRenderer.invoke('flashcards:generateFromMeeting', meetingId),
   usageSummary: () => ipcRenderer.invoke('usage:summary'),
+  cliCheck: (command) => ipcRenderer.invoke('cli:check', command),
   permissionsCheck: () => ipcRenderer.invoke('permissions:check'),
   permissionsRequest: () => ipcRenderer.invoke('permissions:request'),
   permissionsContinue: () => ipcRenderer.send('permissions:continue'),

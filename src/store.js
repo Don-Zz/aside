@@ -23,6 +23,10 @@ const DEFAULTS = {
   minimaxRegion: 'global_en',
   apiKeys: { openai: '', anthropic: '', gemini: '', deepgram: '', custom: '', ollama: '', groq: '', minimax: '' , azure: '' },
   azureEndpoint: '',
+  // '' means "use the main provider above" — set to any provider id (including
+  // 'claude-code' / 'codex') to send ONLY the LeetCode / coding-problem mode
+  // to a different provider than the live-conversation modes use.
+  leetcodeProvider: '',
   // Tab 2: Profile
   resumeText: '',
   jobDescription: '',
@@ -53,7 +57,10 @@ const DEFAULTS = {
     ollama: { fast: 'llama3.2', smart: 'llama3.3' },
     groq: { fast: 'llama-3.1-8b-instant', smart: 'llama-3.3-70b-versatile' },
     minimax: { fast: 'MiniMax-M2.7', smart: 'MiniMax-M3' },
-    azure: { fast: 'gpt-4o-mini', smart: 'gpt-4o' }
+    azure: { fast: 'gpt-4o-mini', smart: 'gpt-4o' },
+    // Empty on purpose — both CLIs pick their own default model unless you set one.
+    'claude-code': { fast: '', smart: '' },
+    codex: { fast: '', smart: '' }
   }
 };
 
