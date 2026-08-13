@@ -11,6 +11,10 @@
   $('.tb-hide .chev').innerHTML = icon('chevron-down', { size: 14 });
   $('#stop-btn').innerHTML = icon('stop-square', { size: 15 });
   $('#quit-btn').innerHTML = icon('x', { size: 14 });
+  // This button previously had no click handler at all — only the ⌘⇧X /
+  // Ctrl⇧X global shortcut actually quit the app. Clicking the visible "X"
+  // in the toolbar did nothing, which is exactly the "can't close it" bug.
+  $('#quit-btn').addEventListener('click', () => cue.quit());
   document.querySelector('.act[data-mode="assist"] .ic').innerHTML = icon('sparkles', { size: 16 });
   document.querySelector('.act[data-mode="say"] .ic').innerHTML = icon('wand-sparkles', { size: 16 });
   document.querySelector('.act[data-mode="followup"] .ic').innerHTML = icon('message-circle', { size: 16 });
@@ -1182,6 +1186,44 @@
     });
   }
 
+  // ---- toolbar provider-status pill — "is this actually connected" at a glance ----
+  const PROVIDER_STATUS_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', deepgram: 'Deepgram', custom: 'Custom', ollama: 'Ollama', groq: 'Groq', minimax: 'MiniMax', azure: 'Azure AI', 'claude-code': 'Claude Code', codex: 'Codex' };
+  async function updateProviderStatusPill() {
+    if (!settings) return;
+    const provider = settings.provider;
+    const dot = $('#provider-status-dot');
+    const label = $('#provider-status-label');
+    const btn = $('#provider-status-btn');
+    if (!dot || !label || !btn) return;
+    const name = PROVIDER_STATUS_LABELS[provider] || provider;
+    label.textContent = name;
+
+    const cliCommand = CLI_PROVIDER_COMMANDS[provider];
+    if (cliCommand) {
+      dot.className = 'provider-status-dot checking';
+      btn.title = `Checking the "${cliCommand}" CLI…`;
+      let result;
+      try { result = await cue.cliCheck(cliCommand); } catch (_) { result = { found: false }; }
+      dot.className = 'provider-status-dot ' + (result && result.found ? 'ready' : 'error');
+      btn.title = result && result.found
+        ? `Connected — "${cliCommand}" CLI found` + (result.version ? ` (${result.version})` : '') + '. Click to open Settings.'
+        : `Not connected — "${cliCommand}" not found on your PATH. Click to open Settings.`;
+      return;
+    }
+
+    let ready;
+    if (provider === 'ollama') ready = true; // local server, no required key
+    else if (provider === 'azure') ready = !!(settings.apiKeys.azure && settings.azureEndpoint);
+    else if (provider === 'custom') ready = !!settings.baseUrl;
+    else ready = !!(settings.apiKeys && settings.apiKeys[provider]);
+
+    dot.className = 'provider-status-dot ' + (ready ? 'ready' : 'error');
+    btn.title = ready
+      ? `Connected — ${name} key set. Click to open Settings.`
+      : `Not connected — add your ${name} API key in Settings. Click to open.`;
+  }
+  $('#provider-status-btn').addEventListener('click', openSettings);
+
   function updateSmartTooltip() {
     if (!settings) return;
     const m = settings.models[settings.provider] || { fast: '', smart: '' };
@@ -1581,6 +1623,7 @@
     $('#model-fast').value = m.fast; $('#model-smart').value = m.smart;
     $('#s-status').textContent = statusText();
     updateSmartTooltip();
+    updateProviderStatusPill();
   }));
   document.querySelectorAll('#leetcode-provider-seg button').forEach((b) => b.addEventListener('click', () => {
     settings.leetcodeProvider = b.dataset.leetcodeProvider;
@@ -1778,6 +1821,7 @@
       $('#s-status').textContent = statusText();
       updatePrepStatus();
       updateSmartTooltip();
+      updateProviderStatusPill();
       return true;
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
@@ -1943,10 +1987,11 @@
       // Windows 10: update the onboarding screen recording button to be more helpful
       const ob = OB_STEPS[1];
       ob.buttons = ob.buttons.filter((b) => !b.label.toLowerCase().includes('screen'));
-      ob.body = 'cue needs microphone permission to hear you. Click the button below to open Windows microphone settings and allow cue.<br><br><strong>Screen capture works automatically on Windows 10</strong> — no additional permission needed.<ul><li><strong>Microphone</strong> — to hear you</li><li><strong>Screen recording</strong> — works automatically on Windows 10</li></ul>';
+      ob.body = 'Aside needs microphone permission to hear you. Click the button below to open Windows microphone settings and allow Aside.<br><br><strong>Screen capture works automatically on Windows 10</strong> — no additional permission needed.<ul><li><strong>Microphone</strong> — to hear you</li><li><strong>Screen recording</strong> — works automatically on Windows 10</li></ul>';
     }
 
     smartBtn.classList.toggle('on', !!settings.smart);
+    updateProviderStatusPill();
     showExample();
     syncPlaceholder();
     updateHistoryBadge(); // FIX #3: Initialize badge on boot

@@ -16,9 +16,14 @@
       </div>
       <button class="tb-logo" id="logo-btn" title="Aside"></button>
       <div class="tb-divider"></div>
+      <button class="tb-provider-status" id="provider-status-btn" title="Checking AI provider…">
+        <span class="provider-status-dot" id="provider-status-dot"></span>
+        <span id="provider-status-label">…</span>
+      </button>
+      <div class="tb-divider"></div>
       <button class="tb-hide" id="hide-btn"><span class="chev"></span><span>Hide</span></button>
       <div class="tb-divider"></div>
-      <button class="tb-stop" id="stop-btn" title="Start / stop listening"></button>
+      <button class="tb-stop" id="stop-btn" title="Turn live listening on/off"></button>
       <div class="tb-divider"></div>
       <button class="tb-quit" id="quit-btn" title="Quit Aside (⌘⇧X)"></button>
     </div>
@@ -108,7 +113,7 @@
         <button class="s-tab on" data-tab="keys">🔑 Keys</button>
         <button class="s-tab" data-tab="transcription">Audio</button>
         <button class="s-tab" data-tab="profile">📄 Profile</button>
-        <button class="s-tab" data-tab="prep">🎯 Interview Prep</button>
+        <button class="s-tab" data-tab="prep">🎯 Talking Points</button>
         <button class="s-tab" data-tab="style">✨ Style</button>
         <button class="s-tab" data-tab="qa">💬 Q&amp;A</button>
         <button class="s-tab" data-tab="meetings">📁 Meetings</button>
@@ -248,7 +253,7 @@
         <textarea id="job-description" rows="5" spellcheck="false" placeholder="Paste the job description for the role you're interviewing for. Aside will highlight your most relevant experience."></textarea>
       </div>
 
-      <!-- Tab: Interview Prep -->
+      <!-- Tab: Talking Points (still "Interview Prep" internally — field names/ids unchanged on purpose) -->
       <div class="s-body s-tab-pane hidden" data-pane="prep">
         <label class="s-label">Your STAR stories <span class="s-hint">write 3–5 real behavioral stories — used for "tell me about a time…" questions</span></label>
         <textarea id="star-stories" rows="8" spellcheck="false" placeholder="Story 1: At [Company], we faced [situation]. I was responsible for [task]. I did [specific actions]. The result was [outcome with metrics if possible].&#10;&#10;Story 2: ..."></textarea>
@@ -268,7 +273,7 @@
         <label class="s-label">Salary target <span class="s-hint">used when asked about compensation</span></label>
         <input id="salary-target" type="text" placeholder="e.g. $150k–$180k base + equity, open to discuss total comp" autocomplete="off" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.25);color:#fff;font-size:13px;font-family:inherit;outline:none;" />
 
-        <label class="s-label" style="margin-top:14px;">Questions to ask the interviewer <span class="s-hint">Aside will suggest these at the end</span></label>
+        <label class="s-label" style="margin-top:14px;">Questions to ask the other person <span class="s-hint">Aside will suggest these at the end</span></label>
         <textarea id="questions-to-ask" rows="6" spellcheck="false" placeholder="e.g.&#10;- What does success look like in the first 90 days?&#10;- How does the team handle technical debt?&#10;- What's the biggest challenge the team is facing right now?&#10;- How does feedback and mentorship work here?"></textarea>
       </div>
 
