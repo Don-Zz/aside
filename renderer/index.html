@@ -124,66 +124,19 @@
       <!-- Tab: Keys -->
       <div class="s-body s-tab-pane" data-pane="keys">
         <label class="s-label">Provider</label>
-        <div class="s-seg s-seg-wrap" id="provider-seg">
-          <button data-provider="openai">OpenAI</button>
-          <button data-provider="anthropic">Anthropic</button>
-          <button data-provider="gemini">Gemini</button>
-          <button data-provider="custom">Custom</button>
-          <button data-provider="ollama">Ollama</button>
-          <button data-provider="groq">Groq</button>
-          <button data-provider="minimax">MiniMax</button>
-          <button data-provider="azure">Azure AI</button>
-          <button data-provider="claude-code">Claude Code</button>
-          <button data-provider="codex">Codex</button>
+        <div class="s-seg" id="provider-seg">
+          <button data-provider="anthropic">Claude</button>
+          <button data-provider="openai">GPT</button>
         </div>
 
-        <div id="cli-provider-note" class="whisper-card hidden">
-          <div class="whisper-runtime-row">
-            <span class="s-label">Local CLI, not an API key</span>
-            <span id="cli-provider-status" class="whisper-badge">Checking…</span>
-          </div>
-          <div class="s-note">Uses your already-logged-in <code id="cli-provider-cmd">claude</code> command instead of a metered key — billed against whatever subscription that CLI is signed into, not per-token. Slower per answer (no streaming) and no API key field needed below.</div>
-        </div>
+        <label class="s-label">API keys <span class="s-hint">stored locally · never sent to any server</span></label>
+        <div class="s-field"><span>Claude</span><input id="key-anthropic" type="password" placeholder="sk-ant-..." autocomplete="off" /></div>
+        <div class="s-field"><span>GPT</span><input id="key-openai" type="password" placeholder="sk-..." autocomplete="off" /></div>
+        <div class="s-field"><span>Deepgram</span><input id="key-deepgram" type="password" placeholder="dg-... (optional — best live-transcription quality)" autocomplete="off" /></div>
 
-        <label class="s-label">API keys &amp; URLs <span class="s-hint">stored locally · never sent to any server</span></label>
-        <div class="s-field"><span>OpenAI</span><input id="key-openai" type="password" placeholder="sk-..." autocomplete="off" /></div>
-        <div class="s-field"><span>Anthropic</span><input id="key-anthropic" type="password" placeholder="sk-ant-..." autocomplete="off" /></div>
-        <div class="s-field"><span>Gemini</span><input id="key-gemini" type="password" placeholder="AIza..." autocomplete="off" /></div>
-        <div class="s-field"><span>Deepgram</span><input id="key-deepgram" type="password" placeholder="dg-..." autocomplete="off" /></div>
-        <div class="s-field"><span>Custom</span><input id="key-custom" type="password" placeholder="optional" autocomplete="off" /></div>
-        <div class="s-field"><span>MiniMax</span><input id="key-minimax" type="password" placeholder="MiniMax API key" autocomplete="off" /></div>
-
-        <label class="s-label">MiniMax region <span class="s-hint">keys are region-bound — a Global key will 401 against China, and vice versa</span></label>
-        <div class="s-seg" id="minimax-region-seg">
-          <button data-region="global_en">Global</button>
-          <button data-region="cn_zh">China</button>
-        </div>
-
-        <div id="custom-endpoint-settings" class="hidden">
-          <label class="s-label" for="base-url">Custom endpoint <span class="s-hint">OpenAI-compatible chat API</span></label>
-          <div class="s-field"><span>Base URL</span><input id="base-url" type="url" placeholder="http://127.0.0.1:18789/v1" autocomplete="off" spellcheck="false" /></div>
-          <div class="s-help">Your Custom key and LLM requests are sent to this URL. Speech-to-text continues to use Deepgram, OpenAI, or Gemini.</div>
-        </div>
-        <div class="s-field"><span>Ollama URL</span><input id="key-ollama" type="text" placeholder="http://localhost:11434" autocomplete="off" /></div>
-        <div class="s-field"><span>Groq</span><input id="key-groq" type="password" placeholder="gsk_..." autocomplete="off" /></div>
-        <div class="s-field"><span>Azure AI Foundry</span><input id="key-azure" type="password" placeholder="azure key or Entra token" autocomplete="off" /></div>
-
-        <label class="s-label">Azure endpoint <span class="s-hint">Azure OpenAI: https://&lt;resource&gt;.openai.azure.com/openai · AI Foundry: https://&lt;host&gt;.cognitiveservices.azure.com (Aside adds /openai/v1)</span></label>
-        <div class="s-field"><span>Endpoint</span><input id="azure-endpoint" type="text" placeholder="https://host.cognitiveservices.azure.com" autocomplete="off" /></div>
-
-        <label class="s-label">Models <span class="s-hint">fast = Smart off · smart = Smart on</span></label>
+        <label class="s-label">Models <span class="s-hint">fast = Smart off · smart = Smart on · leave blank for the default</span></label>
         <div class="s-field"><span>Fast</span><input id="model-fast" type="text" autocomplete="off" /></div>
         <div class="s-field"><span>Smart</span><input id="model-smart" type="text" autocomplete="off" /></div>
-
-        <label class="s-label">Coding-problem provider <span class="s-hint">override just for "Solve what's on screen" — every other mode keeps using the provider above</span></label>
-        <div class="s-seg s-seg-wrap" id="leetcode-provider-seg">
-          <button data-leetcode-provider="">Same as above</button>
-          <button data-leetcode-provider="openai">OpenAI</button>
-          <button data-leetcode-provider="anthropic">Anthropic</button>
-          <button data-leetcode-provider="gemini">Gemini</button>
-          <button data-leetcode-provider="claude-code">Claude Code</button>
-          <button data-leetcode-provider="codex">Codex</button>
-        </div>
 
         <label class="s-label">Assistant access <span class="s-hint">programs allowed to see what Aside is doing</span></label>
         <div class="s-callers" id="applink-callers"></div>

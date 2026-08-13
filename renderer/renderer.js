@@ -1187,8 +1187,8 @@
   }
 
   // ---- toolbar provider-status pill — "is this actually connected" at a glance ----
-  const PROVIDER_STATUS_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', deepgram: 'Deepgram', custom: 'Custom', ollama: 'Ollama', groq: 'Groq', minimax: 'MiniMax', azure: 'Azure AI', 'claude-code': 'Claude Code', codex: 'Codex' };
-  async function updateProviderStatusPill() {
+  const PROVIDER_STATUS_LABELS = { openai: 'GPT', anthropic: 'Claude', deepgram: 'Deepgram' };
+  function updateProviderStatusPill() {
     if (!settings) return;
     const provider = settings.provider;
     const dot = $('#provider-status-dot');
@@ -1198,25 +1198,7 @@
     const name = PROVIDER_STATUS_LABELS[provider] || provider;
     label.textContent = name;
 
-    const cliCommand = CLI_PROVIDER_COMMANDS[provider];
-    if (cliCommand) {
-      dot.className = 'provider-status-dot checking';
-      btn.title = `Checking the "${cliCommand}" CLI…`;
-      let result;
-      try { result = await cue.cliCheck(cliCommand); } catch (_) { result = { found: false }; }
-      dot.className = 'provider-status-dot ' + (result && result.found ? 'ready' : 'error');
-      btn.title = result && result.found
-        ? `Connected — "${cliCommand}" CLI found` + (result.version ? ` (${result.version})` : '') + '. Click to open Settings.'
-        : `Not connected — "${cliCommand}" not found on your PATH. Click to open Settings.`;
-      return;
-    }
-
-    let ready;
-    if (provider === 'ollama') ready = true; // local server, no required key
-    else if (provider === 'azure') ready = !!(settings.apiKeys.azure && settings.azureEndpoint);
-    else if (provider === 'custom') ready = !!settings.baseUrl;
-    else ready = !!(settings.apiKeys && settings.apiKeys[provider]);
-
+    const ready = !!(settings.apiKeys && settings.apiKeys[provider]);
     dot.className = 'provider-status-dot ' + (ready ? 'ready' : 'error');
     btn.title = ready
       ? `Connected — ${name} key set. Click to open Settings.`
@@ -1294,52 +1276,15 @@
     });
   });
 
-  function updateCustomProviderFields() {
-    $('#custom-endpoint-settings').classList.toggle('hidden', settings.provider !== 'custom');
-  }
-
-  const CLI_PROVIDER_COMMANDS = { 'claude-code': 'claude', codex: 'codex' };
-  async function updateCliProviderNote() {
-    const note = $('#cli-provider-note');
-    const command = CLI_PROVIDER_COMMANDS[settings.provider];
-    if (!note) return;
-    note.classList.toggle('hidden', !command);
-    if (!command || !cue.cliCheck) return;
-    $('#cli-provider-cmd').textContent = command;
-    const statusEl = $('#cli-provider-status');
-    statusEl.textContent = 'Checking…';
-    statusEl.className = 'whisper-badge';
-    let result;
-    try { result = await cue.cliCheck(command); } catch (_) { result = { found: false }; }
-    if (result && result.found) {
-      statusEl.textContent = '✓ found' + (result.version ? ' · ' + result.version : '');
-      statusEl.className = 'whisper-badge ready';
-    } else {
-      statusEl.textContent = `⚠ "${command}" not found on PATH`;
-      statusEl.className = 'whisper-badge error';
-    }
-  }
-
   function fillSettings() {
     // Keys tab
     document.querySelectorAll('#provider-seg button').forEach((b) => b.classList.toggle('on', b.dataset.provider === settings.provider));
     $('#key-openai').value = settings.apiKeys.openai || '';
     $('#key-anthropic').value = settings.apiKeys.anthropic || '';
-    $('#key-gemini').value = settings.apiKeys.gemini || '';
     $('#key-deepgram').value = settings.apiKeys.deepgram || '';
-    $('#key-custom').value = settings.apiKeys.custom || '';
-    $('#base-url').value = settings.baseUrl || '';
-    updateCustomProviderFields();
-    $('#key-ollama').value = settings.apiKeys.ollama || '';
-    $('#key-groq').value = settings.apiKeys.groq || '';
-    $('#key-minimax').value = settings.apiKeys.minimax || '';
-    document.querySelectorAll('#minimax-region-seg button').forEach((b) => b.classList.toggle('on', b.dataset.region === (settings.minimaxRegion || 'global_en')));
-    $('#key-azure').value = settings.apiKeys.azure || '';
-    $('#azure-endpoint').value = settings.azureEndpoint || '';
     const m = settings.models[settings.provider] || { fast: '', smart: '' };
     $('#model-fast').value = m.fast; $('#model-smart').value = m.smart;
-    updateCliProviderNote();
-    document.querySelectorAll('#leetcode-provider-seg button').forEach((b) => b.classList.toggle('on', b.dataset.leetcodeProvider === (settings.leetcodeProvider || '')));
+    updateProviderStatusPill();
     fillAppLinkCallers();
     $('#s-status').textContent = statusText();
     // Transcription tab
@@ -1598,12 +1543,11 @@
 
   function statusText() {
     const k = settings.apiKeys;
-    const labels = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini', deepgram: 'Deepgram', custom: 'Custom', ollama: 'Ollama', groq: 'Groq', minimax: 'MiniMax', azure: 'Azure AI Foundry', 'claude-code': 'Claude Code', codex: 'Codex' };
-    const has = Object.keys(labels).filter((p) => k[p]).map((p) => labels[p]);
+    const labels = { openai: 'GPT', anthropic: 'Claude', deepgram: 'Deepgram' };
     // 'auto' walks the same fallback chain src/stt.js builds; an explicit choice
     // is reported as-is so the status line matches what will actually be used.
     const selectedSttProvider = settings.sttProvider || 'auto';
-    const automaticStt = k.deepgram ? 'Deepgram (streaming)' : (k.openai ? 'OpenAI Realtime' : (k.groq ? 'Groq Whisper' : (k.gemini ? 'Gemini (batch)' : 'none')));
+    const automaticStt = k.deepgram ? 'Deepgram (streaming)' : (k.openai ? 'OpenAI Realtime' : 'none — add a Deepgram or GPT key, or switch Audio to Local');
     const stt = selectedSttProvider === 'auto' ? automaticStt : selectedSttProvider;
     const ready = [
       settings.resumeText ? '✓ resume' : null,
@@ -1617,21 +1561,11 @@
   document.querySelectorAll('#provider-seg button').forEach((b) => b.addEventListener('click', () => {
     settings.provider = b.dataset.provider;
     document.querySelectorAll('#provider-seg button').forEach((x) => x.classList.toggle('on', x === b));
-    updateCustomProviderFields();
-    updateCliProviderNote();
     const m = settings.models[settings.provider] || { fast: '', smart: '' };
     $('#model-fast').value = m.fast; $('#model-smart').value = m.smart;
     $('#s-status').textContent = statusText();
     updateSmartTooltip();
     updateProviderStatusPill();
-  }));
-  document.querySelectorAll('#leetcode-provider-seg button').forEach((b) => b.addEventListener('click', () => {
-    settings.leetcodeProvider = b.dataset.leetcodeProvider;
-    document.querySelectorAll('#leetcode-provider-seg button').forEach((x) => x.classList.toggle('on', x === b));
-  }));
-  document.querySelectorAll('#minimax-region-seg button').forEach((b) => b.addEventListener('click', () => {
-    settings.minimaxRegion = b.dataset.region;
-    document.querySelectorAll('#minimax-region-seg button').forEach((x) => x.classList.toggle('on', x === b));
   }));
 
   document.querySelectorAll('#stt-provider-seg button').forEach((button) => button.addEventListener('click', () => {
@@ -1786,15 +1720,7 @@
     // Keys
     settings.apiKeys.openai = $('#key-openai').value.trim();
     settings.apiKeys.anthropic = $('#key-anthropic').value.trim();
-    settings.apiKeys.gemini = $('#key-gemini').value.trim();
     settings.apiKeys.deepgram = $('#key-deepgram').value.trim();
-    settings.apiKeys.custom = $('#key-custom').value.trim();
-    settings.baseUrl = $('#base-url').value.trim();
-    settings.apiKeys.ollama = $('#key-ollama').value.trim();
-    settings.apiKeys.groq = $('#key-groq').value.trim();
-    settings.apiKeys.minimax = $('#key-minimax').value.trim();
-    settings.apiKeys.azure = $('#key-azure').value.trim();
-    settings.azureEndpoint = $('#azure-endpoint').value.trim();
     if (!settings.models[settings.provider]) settings.models[settings.provider] = {};
     settings.models[settings.provider].fast = $('#model-fast').value.trim();
     settings.models[settings.provider].smart = $('#model-smart').value.trim();
@@ -1826,7 +1752,6 @@
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
       $('#s-status').textContent = message;
-      $('#base-url').focus();
       return false;
     }
   }
